@@ -1,0 +1,4 @@
+E:\SEMODS\FighterCommand\Data\Scripts\SEMod\SEMod\obj\Debug\Fighters.csproj.CoreCompileInputs.cache
+H:\SEMODS\FighterCommand\Data\Scripts\SEMod\SEMod\obj\Debug\Fighters.csprojAssemblyReference.cache
+H:\SEMODS\FighterCommand\Data\Scripts\SEMod\SEMod\obj\Debug\Fighters.csproj.CoreCompileInputs.cache
+C:\Users\Elton\OneDrive\SEMODS\FighterCommand\Data\Scripts\SEMod\SEMod\obj\Debug\Fighters.csproj.CoreCompileInputs.cache
