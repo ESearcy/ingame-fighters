@@ -13,7 +13,7 @@ namespace SEMod.INGAME.classes
         public Vector3D Velocity;
         public Vector3D AttackPoint;
         public List<PointOfInterest> PointsOfInterest = new List<PointOfInterest>();
-        public List<PointOfInterest> NearestPoints = new List<PointOfInterest>();
+        //public List<PointOfInterest> NearestPoints = new List<PointOfInterest>();
         public DateTime LastUpdated;
         public String DetailsString;
         public long EntityID;
@@ -38,7 +38,7 @@ namespace SEMod.INGAME.classes
             nearestPoint = pm.AttackPoint;
             Type = pm.Type;
             UpdatePoints(new PointOfInterest(pm.AttackPoint, pm.TargetEntityId));
-            UpdateNearestPoints(new PointOfInterest(pm.AttackPoint, pm.TargetEntityId), Vector3D.Zero);
+            //UpdateNearestPoints(new PointOfInterest(pm.AttackPoint, pm.TargetEntityId), Vector3D.Zero);
         }
 
         public void UpdatePoints(PointOfInterest pointOfInterest)
@@ -50,25 +50,25 @@ namespace SEMod.INGAME.classes
 
         }
 
-        internal void UpdateNearestPoints(PointOfInterest pointOfInterest, Vector3D droneLocation)
-        {
-            var furtherAway = NearestPoints.Where(x => Math.Abs((droneLocation - x.Location).Length()) > Math.Abs((droneLocation - pointOfInterest.Location).Length())).ToList();
-            if (furtherAway.Count() < 1)
-            {
-                NearestPoints.Add(pointOfInterest);
-            }
-            else if (NearestPoints.Count() == 0)
-            {
-                NearestPoints.Add(pointOfInterest);
-            }
+        //internal void UpdateNearestPoints(PointOfInterest pointOfInterest, Vector3D droneLocation)
+        //{
+        //    var furtherAway = NearestPoints.Where(x => Math.Abs((droneLocation - x.Location).Length()) > Math.Abs((droneLocation - pointOfInterest.Location).Length())).ToList();
+        //    if (furtherAway.Count() < 1)
+        //    {
+        //        NearestPoints.Add(pointOfInterest);
+        //    }
+        //    else if (NearestPoints.Count() == 0)
+        //    {
+        //        NearestPoints.Add(pointOfInterest);
+        //    }
 
-            while (NearestPoints.Count > 5)
-                NearestPoints.RemoveAt(1);
-        }
+        //    while (NearestPoints.Count > 2)
+        //        NearestPoints.RemoveAt(1);
+        //}
 
         internal Vector3D GetNearestPoint(Vector3D vector3D)
         {
-            return NearestPoints.OrderBy(x => Math.Abs((vector3D - x.Location).Length())).FirstOrDefault().Location;
+            return PointsOfInterest.OrderBy(x => Math.Abs((vector3D - x.Location).Length())).FirstOrDefault().Location;
         }
 
 

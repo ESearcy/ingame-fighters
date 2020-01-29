@@ -43,7 +43,7 @@ namespace SEMod.INGAME.classes.model
             }
             else
             {
-                log.Debug("Logging New Region");
+               // log.Debug("Logging New Region");
                 addedLocation = true;
                 Regions.Add(region);
             }
@@ -66,12 +66,13 @@ namespace SEMod.INGAME.classes.model
     {
         public long EntityId;
         public List<PointOfInterest> PointsOfInterest = new List<PointOfInterest>();
-        public List<PointOfInterest> NearestPoints = new List<PointOfInterest>();
         public DateTime LastUpdated;
         public Vector3D PlanetCenter;
         public Vector3D surfaceCenter;
         long timesScanned = 0;
-        long minDistBetweenPOI = 150;
+        long minDistBetweenPOI;
+        int maxSavedPoints;
+        bool iscmd;
 
         public double GetScanDensity()
         {
@@ -86,20 +87,21 @@ namespace SEMod.INGAME.classes.model
             //there will always be atleast one point in the region thanks to the constructor
             timesScanned++;
             LastUpdated = DateTime.Now;
-            var location = region.NearestPoints[0];
+            var location = region.PointsOfInterest[0];
             updatedLocation = UpdatePoints(location);
-            UpdateNearestPoints(location, detectorLocation);
 
             return updatedLocation;
         }
 
-        public Region(long EntityId, Vector3D planetLocation, PointOfInterest point, Vector3D detectorLocation)
+        public Region(long EntityId, Vector3D planetLocation, PointOfInterest point, Vector3D detectorLocation, bool iscommand)
         {
+            iscmd = iscommand;
+            minDistBetweenPOI = iscmd ? 150 : 30;
+            maxSavedPoints = iscmd ? 50 : 15;
             this.EntityId = EntityId;
             LastUpdated = DateTime.Now;
             PlanetCenter = planetLocation;
             UpdatePoints(point);
-            UpdateNearestPoints(point, detectorLocation);
         }
 
         public bool UpdatePoints(PointOfInterest pointOfInterest)
@@ -109,48 +111,38 @@ namespace SEMod.INGAME.classes.model
 
             if (!isTooClose)
             {
-                added = true;
-                PointsOfInterest.Add(pointOfInterest);
-
-                while (PointsOfInterest.Count > minDistBetweenPOI)
-                    PointsOfInterest.RemoveAt(1);
-
-                double x = 0, y = 0, z = 0;
-                foreach (var point in PointsOfInterest)
+                if (PointsOfInterest.Count < maxSavedPoints && iscmd)
                 {
-                    x = x + point.Location.X;
-                    y = y + point.Location.Y;
-                    z = z + point.Location.Z;
+                    added = true;
+                    PointsOfInterest.Add(pointOfInterest);
                 }
-                var poiCnt = PointsOfInterest.Count();
-                surfaceCenter = new Vector3D(x / poiCnt, y / poiCnt, z / poiCnt);
+                else if (PointsOfInterest.Count+1 >= maxSavedPoints && !iscmd)
+                {
+                    PointsOfInterest.Add(pointOfInterest);
+                    PointsOfInterest.RemoveAt(0);
+                }
+                //double x = 0, y = 0, z = 0;
+                //foreach (var point in PointsOfInterest)
+                //{
+                //    x = x + point.Location.X;
+                //    y = y + point.Location.Y;
+                //    z = z + point.Location.Z;
+                //}
+                //var poiCnt = PointsOfInterest.Count();
+                //surfaceCenter = new Vector3D(x / poiCnt, y / poiCnt, z / poiCnt);
+                
             }
             return added;
         }
 
-        internal void UpdateNearestPoints(PointOfInterest pointOfInterest, Vector3D droneLocation)
-        {
-            var furtherAway = NearestPoints.Where(x => Math.Abs((droneLocation - x.Location).Length()) > Math.Abs((droneLocation - pointOfInterest.Location).Length())).ToList();
-            if (furtherAway.Count() > 0 || NearestPoints.Count() == 0)
-            {
-                NearestPoints.Add(pointOfInterest);
-            }
-
-            while (NearestPoints.Count > 10)
-            {
-                NearestPoints = NearestPoints.OrderByDescending(x => Math.Abs((droneLocation - x.Location).Length())).ToList();
-                NearestPoints.RemoveAt(0);
-            }
-        }
-
         internal Vector3D GetNearestPoint(Vector3D vector3D)
         {
-            return NearestPoints.OrderBy(x => Math.Abs((vector3D - x.Location).Length())).FirstOrDefault().Location;
+            return PointsOfInterest.OrderBy(x => Math.Abs((vector3D - x.Location).Length())).FirstOrDefault().Location;
         }
 
         internal PointOfInterest GetNearestSurveyPoint(Vector3D vector3D)
         {
-            return NearestPoints.Where(x => !x.HasPendingOrder && !x.Reached && (DateTime.Now - x.Timestamp).TotalMinutes > 60).OrderBy(x => Math.Abs((vector3D - x.Location).Length())).FirstOrDefault();
+            return PointsOfInterest.Where(x => !x.HasPendingOrder && (DateTime.Now - x.Timestamp).TotalMinutes > 30).OrderBy(x => Math.Abs((vector3D - x.Location).Length())).FirstOrDefault();
         }
 
         internal double GetPercentReached()

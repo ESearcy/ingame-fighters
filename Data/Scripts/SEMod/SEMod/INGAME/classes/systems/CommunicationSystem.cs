@@ -18,6 +18,7 @@ namespace SEMod.INGAME.classes
         List<String> PendingMessages = new List<String>();
         private String lastmessageOnHold = null;
         ShipComponents components;
+        
 
         int messagesSent = 0;
         int messagesRecieved = 0;
@@ -52,66 +53,22 @@ namespace SEMod.INGAME.classes
             this.components = componets;
         }
 
-        public void Update()
-        {
-
-            int NumberMessagesSent = AttemptSendPendingMessages();
-            //L.Debug("Number of Antennas: " + _radioAntennas.Count());
-        }
-
         public void SendAwakeningMessage()
         {
             //L.Debug("Sending Awakening Call");
             PendingMessages.Add(ParsedMessage.CreateAwakeningMessage());
         }
 
-        private bool TransmitMessage(String message)
+        
+
+        public List<String> RetrievePendingMessages()
         {
-            foreach (var antenna in components.RadioAntennas)
-            {
-                //LOG.Debug(message);
-                if (antenna.TransmitMessage(message, MyTransmitTarget.Owned))
-                {
-                    //L.Debug("Transmiting: " + message);
-                    messagesSent++;
-                    return true;
-                }
-            }
-            return false;
+            return PendingMessages;
         }
 
-        public int AttemptSendPendingMessages()
+        public void EmptyPendingMessages()
         {
-            //L.Debug("Sending Messages: "+ PendingMessages.Count());
-            var sentMessageCount = 0;
-            bool ableToTransmit = components.RadioAntennas.Any();
-
-            if (lastmessageOnHold != null && ableToTransmit)
-            {
-                ableToTransmit = TransmitMessage(lastmessageOnHold);
-                if (ableToTransmit)
-                    lastmessageOnHold = null;
-            }
-
-            while (PendingMessages.Any() && ableToTransmit)
-            {
-                lastmessageOnHold = PendingMessages.First();
-                PendingMessages.Remove(lastmessageOnHold);
-
-                if (lastmessageOnHold != null)
-                {
-                    ableToTransmit = TransmitMessage(lastmessageOnHold);
-
-                    if (ableToTransmit)
-                        lastmessageOnHold = null;
-
-                    break;
-                }
-                else
-                    L.Error("Failed to transmit: (expected one pending message)" + lastmessageOnHold);
-            }
-            //L.Debug("Messages Sent: "+ sentMessageCount);
-            return sentMessageCount;
+            PendingMessages.Clear();
         }
 
         internal bool IsOperational()

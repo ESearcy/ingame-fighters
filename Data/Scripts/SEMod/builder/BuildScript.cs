@@ -11,8 +11,8 @@ namespace ClassBuilder
     {
         static void Main(string[] args)
         {
-            var path = "H:\\SEMODS\\FighterCommand\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes";
-            var configFile = "H:\\SEMODS\\FighterCommand\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes\\implementations";
+           var path = "C:\\Users\\Elton\\OneDrive\\Space Engineers mods\\FighterCommand\\ingame-fighters\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes";
+            var configFile = "C:\\Users\\Elton\\OneDrive\\Space Engineers mods\\FighterCommand\\ingame-fighters\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes\\implementations";
 
 
             string[] files = Directory.GetFileSystemEntries(path, "*.cs", SearchOption.AllDirectories);
@@ -26,7 +26,7 @@ namespace ClassBuilder
                 String[] lines = File.ReadAllLines(file);
                 int breaksFound = 0;
                 StringBuilder content = new StringBuilder();
-
+                String previousline = "";
                 for (int i = 0; i < lines.Length && breaksFound < 2; i++)
                 {
                     String line = lines[i];
@@ -37,8 +37,9 @@ namespace ClassBuilder
 
                         breaksFound++;
                     }
-                    else if (breaksFound == 1 && line.Trim().Length > 0 && !line.Trim().StartsWith("//"))
+                    else if (breaksFound == 1 && line.Trim().Length > 0 && !line.Trim().StartsWith("//") && !previousline.Contains("//skipbelow"))
                         content.AppendLine(Minify(line));
+                    previousline = line;
                 }
                 contents.Add(classname, content.ToString());
             }

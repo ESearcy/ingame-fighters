@@ -36,7 +36,7 @@ namespace SEMod.INGAME.classes
             {
                 if (!Factories.Keys.Contains(group.Name))
                 {
-                    Factories.Add(group.Name,new Factory(group, L));
+                    Factories.Add(group.Name, new Factory(group, L));
                 }
                 else
                 {

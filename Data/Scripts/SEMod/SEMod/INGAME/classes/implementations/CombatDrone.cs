@@ -21,18 +21,21 @@ namespace SEMod.INGAME.classes.implementations
             navigationSystems = new NavigationSystem(log, Me.CubeGrid, shipComponents);
             productionSystems = new ProductionSystem(log, Me.CubeGrid, shipComponents);
             storageSystem = new StorageSystem(log, Me.CubeGrid, shipComponents);
-            trackingSystems = new TrackingSystem(log, Me.CubeGrid, shipComponents);
+            trackingSystems = new TrackingSystem(log, Me.CubeGrid, shipComponents, false);
             weaponSystems = new WeaponSystem(log, Me.CubeGrid, shipComponents);
 
             operatingOrder.AddLast(new TaskInfo(LocateAllParts));
             operatingOrder.AddLast(new TaskInfo(InternalSystemScan));
             operatingOrder.AddLast(new TaskInfo(NavigationCheck));
+            operatingOrder.AddLast(new TaskInfo(RecieveFleetMessages));
+            operatingOrder.AddLast(new TaskInfo(SendPendingMessages));
             operatingOrder.AddLast(new TaskInfo(FollowOrders));
             operatingOrder.AddLast(new TaskInfo(SensorScan));
             operatingOrder.AddLast(new TaskInfo(UpdateTrackedTargets));
             operatingOrder.AddLast(new TaskInfo(UpdateDisplays));
             operatingOrder.AddLast(new TaskInfo(FollowOrders));
-            
+            SetupFleetListener();
+
             maxCameraRange = 5000;
             maxCameraAngle = 80;
 
@@ -49,11 +52,6 @@ namespace SEMod.INGAME.classes.implementations
                 if (argument.Length == 0)
                 {
                     Update();
-                }
-
-                else
-                {
-                    IntrepretMessage(argument);
                 }
             }
             catch (Exception e)
@@ -78,53 +76,55 @@ namespace SEMod.INGAME.classes.implementations
             }
         }
 
-        public void IntrepretMessage(String argument)
+        private void RecieveFleetMessages()
         {
-            if (argument == null)
-                return;
-
-            var pm = communicationSystems.ParseMessage(argument);
-
-            if (!registered && pm.TargetEntityId == Me.CubeGrid.EntityId && pm.MessageType == MessageCode.Confirmation)
+            var messages = RecieveMessages();
+            foreach (var mes in messages)
             {
-                registered = true;
-                CommandShipEntity = pm.EntityId;
-                log.Debug("Registered!!");
-            }
+                var pm = communicationSystems.ParseMessage(mes);
 
-            if (ParsedMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
-            {
-                pm.NumBounces++;
-                //LOG.Debug("Bounced Message");
-                communicationSystems.SendMessage(pm.ToString());
-            }
-
-            if (registered)
-            {
-                switch (pm.MessageType)
+                if (!registered && pm.TargetEntityId == Me.CubeGrid.EntityId && pm.MessageType == MessageCode.Confirmation)
                 {
-                    case MessageCode.Order:
-                        if (CommandShipEntity == pm.CommanderId && pm.EntityId == Me.CubeGrid.EntityId)
-                        {
-                            log.Debug(pm.OrderType + " order recieved");
-                            if (pm.OrderType == OrderType.Dock && CurrentOrder != null && CurrentOrder.Ordertype == OrderType.Dock)
-                            {
-                                try
-                                {
-                                    CurrentOrder.PrimaryLocation = pm.Location;
-                                    CurrentOrder.UpdateDockingCoords();
-                                }
-                                catch (Exception e) { log.Error(e.StackTrace); }
+                    registered = true;
+                    CommandShipEntity = pm.EntityId;
+                    log.Debug("Registered!!");
+                }
 
-                            }
-                            else
+                if (ParsedMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
+                {
+                    pm.NumBounces++;
+                    //LOG.Debug("Bounced Message");
+                    communicationSystems.SendMessage(pm.ToString());
+                }
+
+                if (registered)
+                {
+                    switch (pm.MessageType)
+                    {
+                        case MessageCode.Order:
+                            if (CommandShipEntity == pm.CommanderId && pm.EntityId == Me.CubeGrid.EntityId)
                             {
-                                NextOrder = new DroneOrder(log, pm.OrderType, pm.RequestID, pm.TargetEntityId, pm.EntityId, pm.Location, pm.AlignForward, pm.AlignUp);
+                                log.Debug(pm.OrderType + " order recieved");
+                                if (pm.OrderType == OrderType.Dock && CurrentOrder != null && CurrentOrder.Ordertype == OrderType.Dock)
+                                {
+                                    try
+                                    {
+                                        CurrentOrder.PrimaryLocation = pm.Location;
+                                        CurrentOrder.UpdateDockingCoords();
+                                    }
+                                    catch (Exception e) { log.Error(e.StackTrace); }
+
+                                }
+                                else
+                                {
+                                    NextOrder = new DroneOrder(log, pm.OrderType, pm.RequestID, pm.TargetEntityId, pm.EntityId, pm.Location, pm.AlignForward, pm.AlignUp);
+                                }
                             }
-                        }
-                        break;
+                            break;
+                    }
                 }
             }
+
         }
 
         //Order related variables
@@ -317,37 +317,33 @@ namespace SEMod.INGAME.classes.implementations
                 var preDockLocation = CurrentOrder.dockroute[CurrentOrder.DockRouteIndex];
                 if (preDockLocation != null)
                 {
-                    //CurrentOrder.PrimaryLocation + (CurrentOrder.DirectionalVectorOne * 20);
-
                     var remoteControl = shipComponents.ControlUnits.FirstOrDefault();
                     var connector = shipComponents.Connectors.First();
 
-                    var shipDockPoint = remoteControl.GetPosition();
-                    var connectorAdjustVector = connector.GetPosition() - remoteControl.GetPosition();
-
+                    var myloc = remoteControl.GetPosition();
+                    var connectorAdjustrange = (connector.GetPosition() - remoteControl.GetPosition()).Length();
 
                     if (connector.Status != MyShipConnectorStatus.Connected)
                     {
                         log.Debug("Dock cp2");
-                        var distanceFromCPK1 = ((shipDockPoint + connectorAdjustVector) - preDockLocation).Length();
+                        var distanceFromCPK1 = (myloc - preDockLocation).Length();
 
-                        if (distanceFromCPK1 <= .5 && CurrentOrder.DockRouteIndex > 0)
+                        if (distanceFromCPK1 <= .5 && CurrentOrder.DockRouteIndex > (int)connectorAdjustrange)
                         {
                             CurrentOrder.DockRouteIndex--;
                         }
 
-                        var distanceFromConnector = ((shipDockPoint) - CurrentOrder.PrimaryLocation).Length();
+                        var distanceFromConnector = (myloc - CurrentOrder.PrimaryLocation).Length();
 
                         if (distanceFromConnector < 10)
                         {
-                            log.Debug("Dock cp3");
+                            log.Debug("Dock cp3: " + distanceFromConnector + " " + connector.Status);
                             connector.GetActionWithName("OnOff_On").Apply(connector);
 
                             log.Debug("Connecter Status: " + connector.Status);
-                            if (connector.Status == MyShipConnectorStatus.Connectable)
-                            {
-                                connector.Connect();
-                            }
+
+                            connector.Connect();
+
                         }
 
                         //log.Debug("from dock " + distanceFromConnector + " from point: " + distanceFromCPK1 + " index: " + CurrentOrder.dockroute.Count);

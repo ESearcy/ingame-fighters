@@ -194,7 +194,7 @@ namespace SEMod.INGAME.classes
                 var distance = (int)(drone.lastKnownPosition - grid.GetPosition()).Length();
                 int velocity = (int)(Math.Abs(drone.LastKnownVector.X) + Math.Abs(drone.LastKnownVector.Y) + Math.Abs(drone.LastKnownVector.Z));
 
-                droneinfos += "| " + drone.EntityId + "   |  " + drone.Type + "     |    " + (int)(drone.Health * 100) + "%     |    " + drone.numSensors + "    |      " + drone.CameraCount + "      |    " + drone.NumDrills + " |       " + drone.Guns + " |       " + drone.Rockets + "       |    " + (int)((drone.PercentCargo / drone.StorageMax) * 100) + "% |       " + drone.StorageMax + " |       " + drone.CurrentPower + " |       " + drone.MaxPower + " |       " + drone.Batteries + " |       " + drone.Reactors + " |       " + drone.Merge + "       |    " + velocity + "/" + distance + " | " + (drone.Docked ? "Docked" : "un-docked") + "\n";
+                droneinfos += "| " + drone.EntityId + "   |  " + drone.Type + "     |    " + (int)(drone.Health * 100) + "%     |    " + drone.numSensors + "    |      " + drone.CameraCount + "      |    " + drone.NumDrills + " |       " + drone.Guns + " |       " + drone.Rockets + "       |    " + (int)((drone.PercentCargo / drone.StorageMax) * 100) + "% |       " + drone.StorageMax + " |       " + drone.CurrentPower + " |       " + drone.MaxPower + " |       " + drone.Batteries + "      |      " + (int)((drone.CurrentPower / drone.MaxPower)*100) + "% power |    " + drone.Merge + "       |    " + velocity + "/" + distance + " | " + (drone.Docked ? "Docked" : "un-docked") + "\n";
             }
             if (drones.Count == 0)
                 droneinfos = "| No Drone Info |";
@@ -216,7 +216,7 @@ namespace SEMod.INGAME.classes
 
                 int velocity = (int)(Math.Abs(drone.LastKnownVector.X) + Math.Abs(drone.LastKnownVector.Y) + Math.Abs(drone.LastKnownVector.Z));
 
-                missioninfos += "| " + drone.EntityId + "   |  " + order.Ordertype + "     |    " + (int)((DateTime.Now - order.IssuedAt).TotalSeconds) + "    |      " + order.Confirmed + "      |       " + distancefromCC + "      |      " + distancefromDrone + "      |\n";
+                missioninfos += "| " + drone.EntityId + "   |  " + order.Ordertype + "     |    " + (int)((DateTime.Now - order.IssuedAt).TotalSeconds) + "    |      " + order.Confirmed + "      |       " + distancefromCC + "      |      " + distancefromDrone  + " |\n";
             }
             if (drones.Count == 0)
                 missioninfos = "| No Mission Info |";

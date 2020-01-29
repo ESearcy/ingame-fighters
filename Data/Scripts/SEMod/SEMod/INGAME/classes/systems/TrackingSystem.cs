@@ -14,12 +14,14 @@ namespace SEMod.INGAME.classes.systems
         private Logger log;
         private IMyCubeGrid cubeGrid;
         private ShipComponents shipComponets;
+        bool iscmd;
 
         List<TrackedEntity> trackedEntities = new List<TrackedEntity>();
         List<PlanetaryData> KnownPlanets = new List<PlanetaryData>();
 
-        public TrackingSystem(Logger log, IMyCubeGrid cubeGrid, ShipComponents shipComponets)
+        public TrackingSystem(Logger log, IMyCubeGrid cubeGrid, ShipComponents shipComponets, bool iscommand)
         {
+            iscmd = iscommand;
             this.log = log;
             this.cubeGrid = cubeGrid;
             this.shipComponets = shipComponets;
@@ -51,11 +53,6 @@ namespace SEMod.INGAME.classes.systems
             {
                 te.UpdatePoints(new PointOfInterest(pm.AttackPoint, 0));
             }
-
-            if (selfcalled)
-            {
-                te.UpdateNearestPoints(new PointOfInterest(pm.AttackPoint, 0), cubeGrid.GetPosition());
-            }
         }
 
         List<String> idsFound = new List<string>();
@@ -74,12 +71,12 @@ namespace SEMod.INGAME.classes.systems
             var existingPlanet = KnownPlanets.Where(x => x.PlanetCenter == pm.Location).FirstOrDefault();
             if (existingPlanet != null)
             {
-                locationAdded = existingPlanet.UpdatePlanetaryData(new Region(pm.TargetEntityId, pm.Location, new PointOfInterest(pm.AttackPoint, pm.TargetEntityId), cubeGrid.GetPosition()), cubeGrid.GetPosition());
+                locationAdded = existingPlanet.UpdatePlanetaryData(new Region(pm.TargetEntityId, pm.Location, new PointOfInterest(pm.AttackPoint, pm.TargetEntityId), cubeGrid.GetPosition(), iscmd), cubeGrid.GetPosition());
                 //log.Debug("updated planet data");
             }
             else
             {
-                KnownPlanets.Add(new PlanetaryData(log, pm.Location, new Region(pm.TargetEntityId, pm.Location, new PointOfInterest(pm.AttackPoint, pm.TargetEntityId), cubeGrid.GetPosition()), cubeGrid.GetPosition()));
+                KnownPlanets.Add(new PlanetaryData(log, pm.Location, new Region(pm.TargetEntityId, pm.Location, new PointOfInterest(pm.AttackPoint, pm.TargetEntityId), cubeGrid.GetPosition(), iscmd), cubeGrid.GetPosition()));
                 locationAdded = true;
                 //log.Debug("Logged New planet discovery: "+ pm.Location);
             }
@@ -146,10 +143,10 @@ namespace SEMod.INGAME.classes.systems
             return null;
         }
 
-        internal PointOfInterest GetNearestScanPoint(Vector3D point, int minDistance)
+        internal PointOfInterest GetNearestScanPoint(Vector3D point, int maxDistance)
         {
-            var needToBeScanned = GetNearestPlanet().Regions
-                .OrderBy(x => (x.surfaceCenter - point).Length()).Take(10)
+            var needToBeScanned = 
+                GetNearestPlanet().Regions.OrderBy(x => (x.surfaceCenter - point).Length()).Take(10)
                 .Where(x => x.PointsOfInterest.Any(y => (DateTime.Now - y.Timestamp).TotalMinutes > 20));
 
             PointOfInterest retrn = null;
@@ -157,7 +154,7 @@ namespace SEMod.INGAME.classes.systems
             {
                 var nearestUncheckedRegion = needToBeScanned.First();
 
-                var surveyPoints = nearestUncheckedRegion.PointsOfInterest.Where(x => !x.HasPendingOrder);
+                var surveyPoints = nearestUncheckedRegion.PointsOfInterest.Where(x => !x.HasPendingOrder && (x.Location - point).Length()<maxDistance);
 
                 var weightedByImportance = surveyPoints.OrderBy(x => (x.Location - point).Length());
                 retrn = surveyPoints.Any() ? surveyPoints.First() : null;
@@ -171,11 +168,11 @@ namespace SEMod.INGAME.classes.systems
         {
             var regions = GetNearestPlanet().Regions.Where(x => x.EntityId == pointOfIntrest.regionEntityID);
             var region = regions.FirstOrDefault();
-            log.Debug("region found: " + (region != null));
+            //log.Debug("region found: " + (region != null));
             if (region != null)
             {
                 var pointOfIntrestToUpdate = region.PointsOfInterest.Where(x => x.Location == pointOfIntrest.Location).FirstOrDefault();
-                log.Debug("pointOfIntrest found: " + (pointOfIntrestToUpdate != null));
+                //log.Debug("pointOfIntrest found: " + (pointOfIntrestToUpdate != null));
                 region.PointsOfInterest.Remove(pointOfIntrestToUpdate);
                 region.PointsOfInterest.Add(pointOfIntrest);
             }

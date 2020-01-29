@@ -12,6 +12,7 @@ namespace SEMod.INGAME.classes.implementations
         protected IMyGridProgramRuntimeInfo Runtime;
         protected IMyProgrammableBlock Me = null;
         protected IMyGridTerminalSystem GridTerminalSystem = null;
+        IMyIntergridCommunicationSystem IGC;
 
         //////
         protected LinkedList<TaskInfo> operatingOrder = new LinkedList<TaskInfo>();
@@ -35,7 +36,14 @@ namespace SEMod.INGAME.classes.implementations
         protected int lastOperationIndex = 0;
         protected DateTime lastReportTime = DateTime.Now;
         protected long messagesRecieved = 0;
-        
+
+
+        public void SetupFleetListener()
+        {
+
+            IGC.RegisterBroadcastListener("fleet");
+        }
+
         protected void LocateAllParts()
         {
             shipComponents.Sync(GridTerminalSystem, Me.CubeGrid);
@@ -44,7 +52,13 @@ namespace SEMod.INGAME.classes.implementations
         protected void Update()
         {
             RunNextOperation();
-            communicationSystems.Update();
+        }
+
+        public void SendPendingMessages()
+        {
+            var messages = communicationSystems.RetrievePendingMessages();
+            foreach (var message in messages)
+                TransmitMessage(message);
         }
 
         protected void RunNextOperation()
@@ -218,6 +232,11 @@ namespace SEMod.INGAME.classes.implementations
                 communicationSystems.SendMessage(entity.Value);
         }
 
+        private void TransmitMessage(String message)
+        {
+                IGC.SendBroadcastMessage("fleet", message, TransmissionDistance.TransmissionDistanceMax);
+                //L.Debug("Transmiting: " + message);
+        }
         protected void ParseMessage(string argument, bool selfCalled = false)
         {
             try
@@ -291,6 +310,46 @@ namespace SEMod.INGAME.classes.implementations
 
         protected int Mass = 0;
 
+
+        List<String> incomingMessages = new List<String>();
+        public List<String> RecieveMessages()
+        {
+            List<IMyBroadcastListener> listeners = new List<IMyBroadcastListener>();
+
+            // The method argument below is the list we wish IGC to populate with all Listeners we've made.
+            // Our Listener will be at index 0, since it's the only one we've made so far.
+            IGC.GetBroadcastListeners(listeners);
+            incomingMessages.Clear();
+
+            if (listeners[0].HasPendingMessage)
+            {
+                // Let's create a variable for our new message. 
+                // Remember, messages have the type MyIGCMessage.
+                MyIGCMessage message = new MyIGCMessage();
+
+                // Time to get our message from our Listener (at index 0 of our Listener list). 
+                // We do this with the following method:
+                message = listeners[0].AcceptMessage();
+
+                if (message.Data != null)
+                {
+                    // A message is a struct of 3 variables. To read the actual data, 
+                    // we access the Data field, convert it to type string (unboxing),
+                    // and store it in the variable messagetext.
+                    string messagetext = message.Data.ToString();
+
+                    // We can also access the tag that the message was sent with.
+                    string messagetag = message.Tag;
+
+                    //Here we store the "address" to the Programmable Block (our friend's) that sent the message.
+                    long sender = message.Source;
+
+                    //Do something with the information!
+                    incomingMessages.Add(messagetext);
+                }
+            }
+            return incomingMessages;
+        }
 
         //////
     }

@@ -13,6 +13,7 @@ namespace SEMod.INGAME.classes.implementations
         IMyProgrammableBlock Me = null;
         IMyGridTerminalSystem GridTerminalSystem = null;
         IMyGridProgramRuntimeInfo Runtime;
+        
 
         public MiningBase()
         //////public Program()
@@ -20,25 +21,29 @@ namespace SEMod.INGAME.classes.implementations
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
             shipComponents = new ShipComponents();
             LocateAllParts();
+            SetupFleetListener();
+
             log = new Logger(Me.CubeGrid, shipComponents);
 
             communicationSystems = new CommunicationSystem(log, Me.CubeGrid, shipComponents);
             navigationSystems = new BasicNavigationSystem(log, Me.CubeGrid, shipComponents);
             productionSystems = new ProductionSystem(log, Me.CubeGrid, shipComponents);
             storageSystem = new StorageSystem(log, Me.CubeGrid, shipComponents);
-            trackingSystems = new TrackingSystem(log, Me.CubeGrid, shipComponents);
+            trackingSystems = new TrackingSystem(log, Me.CubeGrid, shipComponents, true);
             weaponSystems = new WeaponSystem(log, Me.CubeGrid, shipComponents);
 
             operatingOrder.AddLast(new TaskInfo(LocateAllParts));
             operatingOrder.AddLast(new TaskInfo(InternalSystemScan));
             operatingOrder.AddLast(new TaskInfo(NavigationCheck));
+            operatingOrder.AddLast(new TaskInfo(RecieveFleetMessages));
+            operatingOrder.AddLast(new TaskInfo(SendPendingMessages));
             operatingOrder.AddLast(new TaskInfo(SensorScan));
             operatingOrder.AddLast(new TaskInfo(MaintainAltitude));
             operatingOrder.AddLast(new TaskInfo(UpdateTrackedTargets));
             operatingOrder.AddLast(new TaskInfo(UpdateDisplays));
             operatingOrder.AddLast(new TaskInfo(IssueOrders));
             operatingOrder.AddLast(new TaskInfo(RunProductionRoutine));
-
+            
 
             maxCameraRange = 5000;
             maxCameraAngle = 80;
@@ -50,6 +55,7 @@ namespace SEMod.INGAME.classes.implementations
         protected BasicNavigationSystem navigationSystems;
         List<DroneContext> drones = new List<DroneContext>();
         DateTime startTime = DateTime.Now;
+
 
         public void RunProductionRoutine()
         {
@@ -82,6 +88,39 @@ namespace SEMod.INGAME.classes.implementations
                 antenna.CustomName = "\nA: " + (int)trackingSystems.GetAltitude() + "\n" +
                     "S: " + (int)navigationSystems.GetSpeed();
             }
+        }
+        
+        private void RecieveFleetMessages()
+        {
+            var messages = RecieveMessages();
+            foreach (var mes in messages) {
+                var pm = communicationSystems.ParseMessage(mes);
+                if (ParsedMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
+                {
+                    pm.NumBounces++;
+                    //LOG.Debug("Bounced Message");
+                    communicationSystems.SendMessage(pm.ToString());
+                }
+
+
+                switch (pm.MessageType)
+                {
+                    case MessageCode.Register:
+                        RegisterDrone(pm);
+                        break;
+                    case MessageCode.Update:
+                        UpdateDrone(pm);
+                        break;
+                    case MessageCode.PingEntity:
+                        if (pm.Type.Trim().ToLower().Contains("planet"))
+                            trackingSystems.UpdatePlanetData(pm, false);
+                        else
+                            trackingSystems.UpdateTrackedEntity(pm, false);
+
+                        break;
+                }
+            }
+        
         }
 
         private void RegisterDrone(ParsedMessage pm)
@@ -148,32 +187,7 @@ namespace SEMod.INGAME.classes.implementations
                 return;
             }
 
-            var pm = communicationSystems.ParseMessage(argument);
-
-            if (ParsedMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
-            {
-                pm.NumBounces++;
-                //LOG.Debug("Bounced Message");
-                communicationSystems.SendMessage(pm.ToString());
-            }
-
-
-            switch (pm.MessageType)
-            {
-                case MessageCode.Register:
-                    RegisterDrone(pm);
-                    break;
-                case MessageCode.Update:
-                    UpdateDrone(pm);
-                    break;
-                case MessageCode.PingEntity:
-                    if (pm.Type.Trim().ToLower().Contains("planet"))
-                        trackingSystems.UpdatePlanetData(pm, false);
-                    else
-                        trackingSystems.UpdateTrackedEntity(pm, false);
-
-                    break;
-            }
+            
         }
 
         DateTime lastGlobalWakeupCall = DateTime.Now.AddMinutes(-10);
@@ -184,7 +198,7 @@ namespace SEMod.INGAME.classes.implementations
             if (order != null)
             {
                 var time = (DateTime.Now - order.LastUpdated).TotalSeconds;
-                if (time >= 10 || (order.Ordertype == OrderType.Dock))
+                if (time >= 10)
                 {
                     if (order.Ordertype == OrderType.Dock)
                     {
@@ -192,7 +206,7 @@ namespace SEMod.INGAME.classes.implementations
                     }
                     //send again
                     communicationSystems.TransmitOrder(order, Me.CubeGrid.EntityId);
-                    //log.Debug("Resending " + order.Ordertype + " order");
+                    log.Debug("Resending " + order.Ordertype + " order");
                     order.LastUpdated = DateTime.Now;
                 }
             }
@@ -203,8 +217,10 @@ namespace SEMod.INGAME.classes.implementations
             var order = droneInfo.Order;
             var needOres = false;
 
+
+            //log.Debug(drone.PercentCargo + " cargo & max " + drone.StorageMax);
             var droneCargo = (drone.PercentCargo / drone.StorageMax) * 100;
-            var batteryPercent = 100;// (int)(drone.CurrentPower/drone.MaxPower);
+            var batteryPercent = (int)((drone.CurrentPower/drone.MaxPower)*100);
 
             if (order == null && drone.Docked)
             {
@@ -227,37 +243,34 @@ namespace SEMod.INGAME.classes.implementations
                 log.Debug("Drone successfully docked - Issuing Standby Order");
                 IssueStandbyOrder(droneInfo);
             }
-            else if (droneCargo > 30 && !drone.Docked)
+            else if (droneCargo > 75 && !drone.Docked && (order == null || order.Ordertype != OrderType.Dock))
             {
-                if (order == null || order.Ordertype != OrderType.Dock)
-                {
-                    var dockOrderIssued = IssueDockOrder(droneInfo);
+                
+                var dockOrderIssued = IssueDockOrder(droneInfo);
 
-                    if (!dockOrderIssued)
-                    {
-                        log.Debug("Cargo Full: unable to issue dock Order, Standby order issued");
-                        IssueStandbyOrder(droneInfo);
-                    }
-                    else
-                        log.Debug("Cargo Full: dock Order Issued");
+                if (!dockOrderIssued)
+                {
+                    log.Debug("Cargo Full: unable to issue dock Order, Standby order issued");
+                    IssueStandbyOrder(droneInfo);
                 }
+                else
+                    log.Debug("Cargo Full: dock Order Issued");
+
             }
-            else if (batteryPercent < 30 && !drone.Docked)
+            else if (batteryPercent < 30 && !drone.Docked && (order == null || order.Ordertype != OrderType.Dock))
             {
-                if (order == null || order.Ordertype != OrderType.Dock)
-                {
-                    var dockOrderIssued = IssueDockOrder(droneInfo);
+                var dockOrderIssued = IssueDockOrder(droneInfo);
 
-                    if (!dockOrderIssued)
-                    {
-                        log.Debug("Low Battery: unable to issue dock Order, Standby order issued");
-                        IssueStandbyOrder(droneInfo);
-                    }
-                    else
-                        log.Debug("Low Battery: dock Order Issued");
+                if (!dockOrderIssued)
+                {
+                    log.Debug("Low Battery: unable to issue dock Order, Standby order issued");
+                    IssueStandbyOrder(droneInfo);
                 }
+                else
+                    log.Debug("Low Battery: dock Order Issued");
+
             }
-            else if ((batteryPercent < 30 || droneCargo > 30) && drone.Docked)
+            else if ((batteryPercent < 90 || droneCargo > 75) && drone.Docked)
             {
 
                 if (order != null && order.Ordertype != OrderType.Standby)
@@ -301,6 +314,7 @@ namespace SEMod.INGAME.classes.implementations
                     //log.Debug("Scan Order Complete");
                     order.PointOfIntrest.HasPendingOrder = false;
                     order.PointOfIntrest.Timestamp = DateTime.Now;
+                    order.PointOfIntrest.Reached = true;
                     OngoingScanOrders.Remove(order);
                     trackingSystems.UpdateScanPoint(order.PointOfIntrest);
 
@@ -333,6 +347,25 @@ namespace SEMod.INGAME.classes.implementations
             else if (order != null && order.Ordertype == OrderType.Standby && !drone.Docked)
             {
                 IssueDockOrder(droneInfo);
+            }
+            else if (order != null && order.Ordertype == OrderType.Mine && !drone.Docked)
+            {
+                var directionV = navigationSystems.GetGravityDirection();
+                directionV.Normalize();
+                var target_endpoint = order.PrimaryLocation + (directionV * 35);
+                var target_end_point_distance = (int)(drone.lastKnownPosition - target_endpoint).Length();
+                var target_between_start_and_end = (int)(order.PrimaryLocation - target_endpoint).Length();
+               // log.Debug("target endpoint: " + target_endpoint);
+               // log.Debug("Distance to finish mining: "+ target_end_point_distance);
+               // log.Debug("start - end distance: " + target_between_start_and_end);
+                if (target_end_point_distance<=5)
+                {
+                    miningOrders.Remove(order);
+                    order.PointOfIntrest.Mined = true;
+                    IssueDockOrder(droneInfo);
+                }
+                else
+                    return false;
             }
             else
                 return false;
@@ -414,7 +447,10 @@ namespace SEMod.INGAME.classes.implementations
 
         private bool IssueDockOrder(DroneContext drone)
         {
-            log.Debug("Attampting Dock Order");
+            //if (dockOrders.Count > 3)
+              //  return false;
+
+            log.Debug("Attampting Dock Order. miner? "+ (drone.Info.NumDrills > 0));
             var unused = (drone.Info.NumDrills > 0) ?
                     shipComponents.Connectors.Where(x => x.Status != MyShipConnectorStatus.Connectable && x.Status != MyShipConnectorStatus.Connected && x.CustomName.Contains("#miner#") && !x.CustomName.Contains("#trash#")) :
                     shipComponents.Connectors.Where(x => x.Status != MyShipConnectorStatus.Connectable && x.Status != MyShipConnectorStatus.Connected && !x.CustomName.Contains("#miner#") && !x.CustomName.Contains("#trash#"));
@@ -423,7 +459,7 @@ namespace SEMod.INGAME.classes.implementations
             var available = unused.Where(x => !used.Contains(x));
             var usableConnector = available.FirstOrDefault();
 
-            log.Debug("unused: " + unused.Count() + " used: " + used.Count() + " available: " + available.Count() + "  : " + (usableConnector != null));
+            //log.Debug("unused: " + unused.Count() + " used: " + used.Count() + " available: " + available.Count() + "  : " + (usableConnector != null));
 
             if (usableConnector != null)
             {
@@ -553,7 +589,7 @@ namespace SEMod.INGAME.classes.implementations
                 else
                     log.Debug("No Planet");
             }
-            catch (Exception e) { log.Error("MaintainAltitude " + e.Message); }
+            catch (Exception e) { log.Error("MaintainAltitude " + e.StackTrace); }
         }
 
         private void NavigationCheck()
@@ -579,7 +615,7 @@ namespace SEMod.INGAME.classes.implementations
                 foreach (var op in operatingOrder)
                     UpdateInfoKey(op.CallMethod.Method.Name + "", ((int)op.GetAverageExecutionTime() + "ms" + " CallCountPerc: " + op.GetAverageCallCount() + "% CallDepthPer: " + op.GetAverageCallCount() + "%"));
 
-                UpdateInfoKey("Storage", " Mass: " + navigationSystems.RemoteControl.CalculateShipMass().PhysicalMass + " Max Mass: " + navigationSystems.MaxSupportedWeight / navigationSystems.RemoteControl.GetNaturalGravity().Length());
+                UpdateInfoKey("Storage", " Mass: " + navigationSystems.RemoteControl.CalculateShipMass().PhysicalMass + " Max Mass: " + navigationSystems.GetMaxSupportedWeight());
                 UpdateInfoKey("Power: ", "Current: " + CurPower + " Max: " + MaxPower);
 
                 if (NearestPlanet != null)

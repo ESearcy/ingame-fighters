@@ -21,6 +21,7 @@ namespace SEMod.INGAME.classes.model
         public long TargetEntityID;
         public bool Confirmed = false;
 
+        public PointOfInterest PointOfIntrest;
         public Vector3D Destination;
         internal IMyShipConnector Connector;
         Logger log;
@@ -38,6 +39,7 @@ namespace SEMod.INGAME.classes.model
             DirectionalVectorOne = vectortwo;
             ThirdLocation= thirdLocation;
             DirectionalVectorOne.Normalize();
+            ThirdLocation.Normalize();
             Initalize();
             DockRouteIndex = dockroute.Count() - 1;
         }
@@ -62,8 +64,8 @@ namespace SEMod.INGAME.classes.model
         }
 
         
-       int dockingDistance = 40;
-        public int DockRouteIndex=0;
+        int dockingDistance = 150;
+        public int DockRouteIndex=39;
         public List<Vector3D> dockroute = new List<Vector3D>();
         internal void UpdateDockingCoords()
         {
@@ -78,7 +80,6 @@ namespace SEMod.INGAME.classes.model
 
         int miningDepth = 20;
         public int MiningIndex = 0;
-        public PointOfInterest PointOfIntrest;
 
         internal void UpdateMiningCoords()
         {
@@ -86,7 +87,7 @@ namespace SEMod.INGAME.classes.model
 
             dockroute.Add(PrimaryLocation - (DirectionalVectorOne * 10));
             dockroute.Add(PrimaryLocation - (DirectionalVectorOne * 5));
-            for (double i = 1; i < miningDepth*5; i+=.2)
+            for (double i = 1; i < miningDepth; i+=.2)
             {
                 //log.Debug("Point Added");
                 dockroute.Add(PrimaryLocation + (DirectionalVectorOne * i));

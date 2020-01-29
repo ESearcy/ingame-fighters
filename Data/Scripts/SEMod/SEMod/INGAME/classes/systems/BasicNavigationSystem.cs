@@ -45,6 +45,27 @@ namespace SEMod.INGAME.classes.systems
             SetShipOrientation();
         }
 
+        public double MaxSupportedWeight = 0;
+        public int GetMaxSupportedWeight() {
+            
+            MaxSupportedWeight = 0;
+            foreach (var thruster in components.Thrusters)
+            {
+                //get current thrust (Dampeners)
+                var currentThrust = thruster.CurrentThrust;
+                var maxPossibleThrust = thruster.MaxThrust;
+                var thrusterVector = thruster.WorldMatrix.Forward;
+
+                //60 negative and pos, technically 120* cone
+                var gravity = RemoteControl.GetNaturalGravity();
+
+                var Upward = Math.Abs(AngleBetween(gravity, thrusterVector, true)) < 45;
+                if(Upward)
+                    MaxSupportedWeight += maxPossibleThrust;
+            }
+            return (int)MaxSupportedWeight;
+        }
+
         public void SetShipOrientation()
         {
             if (RemoteControl != null)
@@ -89,20 +110,21 @@ namespace SEMod.INGAME.classes.systems
             return RemoteControl.GetNaturalGravity();
         }
 
-        public double MaxSupportedWeight = 0;
+        
         public bool ThrustInDirection(Vector3D desiredVector, bool blockUpDownGravityMovement = false, bool disableIsAlreadyRunning = true)
         {
             var thrusted = false;
-            MaxSupportedWeight = 0;
+            
             //antidrift handled by Dampeners
             if (!RemoteControl.DampenersOverride)
                 RemoteControl.DampenersOverride = true;
+
 
             foreach (var thruster in components.Thrusters)
             {
                 //get current thrust (Dampeners)
                 var currentThrust = thruster.CurrentThrust;
-                var maxPossibleThrust = thruster.MaxEffectiveThrust;
+                var maxPossibleThrust = thruster.MaxThrust;
                 //get desired additional thrust based on distance. 104 is max speed usually
                 //var thrustPercent = 1d;
                 //if (distance < 1000) thrustPercent = Math.Sqrt(distance)/30;
@@ -121,8 +143,8 @@ namespace SEMod.INGAME.classes.systems
 
                 var Downward = Math.Abs(AngleBetween(-gravity, thrusterVector, true)) < 80;
                 var Upward = Math.Abs(AngleBetween(gravity, thrusterVector, true)) < 80;
-                if (Upward)
-                    MaxSupportedWeight += maxPossibleThrust;
+                //if (Upward)
+                    
 
                 if (angle <= 85)
                 {

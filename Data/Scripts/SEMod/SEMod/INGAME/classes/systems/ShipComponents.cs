@@ -27,6 +27,7 @@ namespace SEMod.INGAME.classes.systems
         public List<IMySmallGatlingGun> GatlingGuns = new List<IMySmallGatlingGun>();
         public List<IMySmallMissileLauncher> RocketLaunchers = new List<IMySmallMissileLauncher>();
         public List<IMyTerminalBlock> AllBlocks = new List<IMyTerminalBlock>();
+        public List<IMyTerminalBlock> AllMyBlocks = new List<IMyTerminalBlock>();
         public List<IMyReactor> Reactors = new List<IMyReactor>();
         public List<IMyBatteryBlock> Batteries = new List<IMyBatteryBlock>();
         public List<IMyBlockGroup> Groups = new List<IMyBlockGroup>();
@@ -48,11 +49,13 @@ namespace SEMod.INGAME.classes.systems
             Thrusters.Clear();
             Cameras.Clear();
             AllBlocks.Clear();
+            AllMyBlocks.Clear();
             Reactors.Clear();
             Batteries.Clear();
             Groups.Clear();
 
             GridTerminalSystem.GetBlocks(AllBlocks);
+            GridTerminalSystem.GetBlocksOfType(AllMyBlocks, b => b.CubeGrid == grid);
             GridTerminalSystem.GetBlocksOfType(MergeBlocks, b => b.CubeGrid == grid);
             GridTerminalSystem.GetBlocksOfType(Cameras, b => b.CubeGrid == grid);
             GridTerminalSystem.GetBlocksOfType(Gyros, b => b.CubeGrid == grid);
