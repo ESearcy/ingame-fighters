@@ -257,7 +257,7 @@ namespace SEMod.INGAME.classes.implementations
                     log.Debug("Cargo Full: dock Order Issued");
 
             }
-            else if (batteryPercent < 30 && !drone.Docked && (order == null || order.Ordertype != OrderType.Dock))
+            else if (batteryPercent < 50 && !drone.Docked && (order == null || order.Ordertype != OrderType.Dock))
             {
                 var dockOrderIssued = IssueDockOrder(droneInfo);
 
@@ -270,7 +270,7 @@ namespace SEMod.INGAME.classes.implementations
                     log.Debug("Low Battery: dock Order Issued");
 
             }
-            else if ((batteryPercent < 90 || droneCargo > 75) && drone.Docked)
+            else if ((batteryPercent < 97 || droneCargo > 75) && drone.Docked)
             {
 
                 if (order != null && order.Ordertype != OrderType.Standby)

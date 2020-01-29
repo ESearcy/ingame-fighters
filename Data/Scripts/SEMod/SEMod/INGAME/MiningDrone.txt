@@ -921,7 +921,7 @@ public List<Vector3D> dockroute=new List<Vector3D>();
 internal void UpdateDockingCoords()
 {
 dockroute.Clear();
-for (int i= 2;i < dockingDistance;i++)
+for (int i= 1;i < dockingDistance;i++)
 {
 dockroute.Add(PrimaryLocation+(DirectionalVectorOne*i));
 }
@@ -1027,6 +1027,10 @@ else if (PointsOfInterest.Count+1>=maxSavedPoints && !iscmd)
 {
 PointsOfInterest.Add(pointOfInterest);
 PointsOfInterest.RemoveAt(0);
+}
+else if (PointsOfInterest.Count+1 < maxSavedPoints && !iscmd)
+{
+PointsOfInterest.Add(pointOfInterest);
 }
 }
 return added;

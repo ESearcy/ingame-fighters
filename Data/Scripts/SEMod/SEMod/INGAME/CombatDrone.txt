@@ -252,17 +252,17 @@ if (preDockLocation != null)
 {
 var remoteControl=shipComponents.ControlUnits.FirstOrDefault();
 var connector=shipComponents.Connectors.First();
-var myloc=remoteControl.GetPosition();
-var connectorAdjustrange=(connector.GetPosition()-remoteControl.GetPosition()).Length();
+var connectorAdjustrange=(connector.GetPosition()-remoteControl.GetPosition());
+var myloc=remoteControl.GetPosition()+connectorAdjustrange;
 if (connector.Status != MyShipConnectorStatus.Connected)
 {
-log.Debug("Dock cp2");
+var distanceFromConnector=(myloc-CurrentOrder.PrimaryLocation).Length();
 var distanceFromCPK1=(myloc-preDockLocation).Length();
-if (distanceFromCPK1<=.5 && CurrentOrder.DockRouteIndex > (int)connectorAdjustrange)
+log.Debug("Dock cp2 "+distanceFromCPK1);
+if (distanceFromCPK1<=.5 && CurrentOrder.DockRouteIndex > 1)
 {
 CurrentOrder.DockRouteIndex--;
 }
-var distanceFromConnector=(myloc-CurrentOrder.PrimaryLocation).Length();
 if (distanceFromConnector < 10)
 {
 log.Debug("Dock cp3: "+distanceFromConnector+" "+connector.Status);
@@ -270,12 +270,12 @@ connector.GetActionWithName("OnOff_On").Apply(connector);
 log.Debug("Connecter Status: "+connector.Status);
 connector.Connect();
 }
-navigationSystems.DockApproach(connector.GetPosition(),preDockLocation);
-if(distanceFromConnector>50)
+navigationSystems.DockApproach(myloc,preDockLocation);
+if(distanceFromConnector>180)
 navigationSystems.AlignTo(preDockLocation);
 else
-navigationSystems.AlignTo(Me.CubeGrid.GetPosition()+(CurrentOrder.DirectionalVectorOne*100));
-navigationSystems.AlignUpWithGravity();
+navigationSystems.AlignTo(Me.CubeGrid.GetPosition()+(CurrentOrder.DirectionalVectorOne*200));
+navigationSystems.Roll(.12f);
 }
 else
 {
@@ -795,7 +795,7 @@ public List<Vector3D> dockroute=new List<Vector3D>();
 internal void UpdateDockingCoords()
 {
 dockroute.Clear();
-for (int i= 2;i < dockingDistance;i++)
+for (int i= 1;i < dockingDistance;i++)
 {
 dockroute.Add(PrimaryLocation+(DirectionalVectorOne*i));
 }
@@ -901,6 +901,10 @@ else if (PointsOfInterest.Count+1>=maxSavedPoints && !iscmd)
 {
 PointsOfInterest.Add(pointOfInterest);
 PointsOfInterest.RemoveAt(0);
+}
+else if (PointsOfInterest.Count+1 < maxSavedPoints && !iscmd)
+{
+PointsOfInterest.Add(pointOfInterest);
 }
 }
 return added;

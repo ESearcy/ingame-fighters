@@ -71,7 +71,7 @@ namespace SEMod.INGAME.classes.model
         {
             dockroute.Clear();
             //log.Debug("setting up dock routes");
-            for (int i= 2; i < dockingDistance; i++)
+            for (int i= 1; i < dockingDistance; i++)
             {
                 //log.Debug("Point Added");
                 dockroute.Add(PrimaryLocation + (DirectionalVectorOne * i));

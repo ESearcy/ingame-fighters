@@ -199,7 +199,7 @@ IssueStandbyOrder(droneInfo);
 else
 log.Debug("Cargo Full: dock Order Issued");
 }
-else if (batteryPercent < 30 && !drone.Docked && (order==null || order.Ordertype != OrderType.Dock))
+else if (batteryPercent < 50 && !drone.Docked && (order==null || order.Ordertype != OrderType.Dock))
 {
 var dockOrderIssued=IssueDockOrder(droneInfo);
 if (!dockOrderIssued)
@@ -210,7 +210,7 @@ IssueStandbyOrder(droneInfo);
 else
 log.Debug("Low Battery: dock Order Issued");
 }
-else if ((batteryPercent < 90 || droneCargo > 75) && drone.Docked)
+else if ((batteryPercent < 97 || droneCargo > 75) && drone.Docked)
 {
 if (order != null && order.Ordertype != OrderType.Standby)
 {
@@ -937,7 +937,7 @@ public List<Vector3D> dockroute=new List<Vector3D>();
 internal void UpdateDockingCoords()
 {
 dockroute.Clear();
-for (int i= 2;i < dockingDistance;i++)
+for (int i= 1;i < dockingDistance;i++)
 {
 dockroute.Add(PrimaryLocation+(DirectionalVectorOne*i));
 }
@@ -1043,6 +1043,10 @@ else if (PointsOfInterest.Count+1>=maxSavedPoints && !iscmd)
 {
 PointsOfInterest.Add(pointOfInterest);
 PointsOfInterest.RemoveAt(0);
+}
+else if (PointsOfInterest.Count+1 < maxSavedPoints && !iscmd)
+{
+PointsOfInterest.Add(pointOfInterest);
 }
 }
 return added;

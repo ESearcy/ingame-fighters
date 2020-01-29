@@ -121,6 +121,10 @@ namespace SEMod.INGAME.classes.model
                     PointsOfInterest.Add(pointOfInterest);
                     PointsOfInterest.RemoveAt(0);
                 }
+                else if (PointsOfInterest.Count + 1 < maxSavedPoints && !iscmd)
+                {
+                    PointsOfInterest.Add(pointOfInterest);
+                }
                 //double x = 0, y = 0, z = 0;
                 //foreach (var point in PointsOfInterest)
                 //{
@@ -130,7 +134,7 @@ namespace SEMod.INGAME.classes.model
                 //}
                 //var poiCnt = PointsOfInterest.Count();
                 //surfaceCenter = new Vector3D(x / poiCnt, y / poiCnt, z / poiCnt);
-                
+
             }
             return added;
         }

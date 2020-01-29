@@ -320,20 +320,23 @@ namespace SEMod.INGAME.classes.implementations
                     var remoteControl = shipComponents.ControlUnits.FirstOrDefault();
                     var connector = shipComponents.Connectors.First();
 
-                    var myloc = remoteControl.GetPosition();
-                    var connectorAdjustrange = (connector.GetPosition() - remoteControl.GetPosition()).Length();
+                    
+                    var connectorAdjustrange = (connector.GetPosition() - remoteControl.GetPosition());
+                    var myloc = remoteControl.GetPosition() + connectorAdjustrange;
+
 
                     if (connector.Status != MyShipConnectorStatus.Connected)
                     {
-                        log.Debug("Dock cp2");
+                        var distanceFromConnector = (myloc - CurrentOrder.PrimaryLocation).Length();
                         var distanceFromCPK1 = (myloc - preDockLocation).Length();
 
-                        if (distanceFromCPK1 <= .5 && CurrentOrder.DockRouteIndex > (int)connectorAdjustrange)
+                        log.Debug("Dock cp2 " + distanceFromCPK1);
+                        if (distanceFromCPK1 <= .5 && CurrentOrder.DockRouteIndex > 1)
                         {
                             CurrentOrder.DockRouteIndex--;
                         }
 
-                        var distanceFromConnector = (myloc - CurrentOrder.PrimaryLocation).Length();
+                        
 
                         if (distanceFromConnector < 10)
                         {
@@ -347,13 +350,14 @@ namespace SEMod.INGAME.classes.implementations
                         }
 
                         //log.Debug("from dock " + distanceFromConnector + " from point: " + distanceFromCPK1 + " index: " + CurrentOrder.dockroute.Count);
-                        navigationSystems.DockApproach(connector.GetPosition(), preDockLocation);
-                        if(distanceFromConnector>50)
+                        navigationSystems.DockApproach(myloc, preDockLocation);
+                        if(distanceFromConnector>180)
                             navigationSystems.AlignTo(preDockLocation);
                         else
-                            navigationSystems.AlignTo(Me.CubeGrid.GetPosition() + (CurrentOrder.DirectionalVectorOne * 100));
+                            navigationSystems.AlignTo(Me.CubeGrid.GetPosition() + (CurrentOrder.DirectionalVectorOne * 200));
 
-                        navigationSystems.AlignUpWithGravity();
+                        navigationSystems.Roll(.12f);
+                        //navigationSystems.AlignUp(navigationSystems.RemoteControl.GetPosition() + (CurrentOrder.ThirdLocation * 400));
                     }
                     else
                     {
