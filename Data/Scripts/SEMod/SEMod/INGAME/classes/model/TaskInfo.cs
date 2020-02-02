@@ -36,23 +36,24 @@ namespace SEMod.INGAME.classes.model
         {
             return PreviousResults.Max(a => a.percentCapDepth);
         }
+        public double GetTrueAverageExecutionTime()
+        {
+            return PreviousResults.Max(a => a.trueRuntme);
+        }
     }
 
     public class TaskResult
     {
         public long runtimeMs;
-        public long operationCount;
+        public double trueRuntme;
         public double percentCapDepth;
         public double percentCapCall;
-        public TaskResult(long rm, long oc, double cc, double cd)
+        public TaskResult(long rm, double cc, double cd)
         {
             percentCapDepth = cd;
             percentCapCall = cc;
             runtimeMs = rm;
-            operationCount = oc;
         }
-
-
     }
 
     //////

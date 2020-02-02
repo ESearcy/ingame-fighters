@@ -66,6 +66,7 @@ namespace SEMod.INGAME.classes.model
     {
         public long EntityId;
         public List<PointOfInterest> PointsOfInterest = new List<PointOfInterest>();
+        public List<PointOfInterest> nearestPoints = new List<PointOfInterest>();
         public DateTime LastUpdated;
         public Vector3D PlanetCenter;
         public Vector3D surfaceCenter;
@@ -116,7 +117,7 @@ namespace SEMod.INGAME.classes.model
                     added = true;
                     PointsOfInterest.Add(pointOfInterest);
                 }
-                else if (PointsOfInterest.Count+1 >= maxSavedPoints && !iscmd)
+                else if (PointsOfInterest.Count + 1 >= maxSavedPoints && !iscmd)
                 {
                     PointsOfInterest.Add(pointOfInterest);
                     PointsOfInterest.RemoveAt(0);
@@ -125,23 +126,33 @@ namespace SEMod.INGAME.classes.model
                 {
                     PointsOfInterest.Add(pointOfInterest);
                 }
-                //double x = 0, y = 0, z = 0;
-                //foreach (var point in PointsOfInterest)
-                //{
-                //    x = x + point.Location.X;
-                //    y = y + point.Location.Y;
-                //    z = z + point.Location.Z;
-                //}
-                //var poiCnt = PointsOfInterest.Count();
-                //surfaceCenter = new Vector3D(x / poiCnt, y / poiCnt, z / poiCnt);
 
+                if (PointsOfInterest.Count() == 1)
+                    surfaceCenter = pointOfInterest.Location;
+                else
+                {
+                    var mtplr = PointsOfInterest.Count();
+                    var loc = pointOfInterest.Location;
+                    var x = surfaceCenter.X + loc.X * mtplr;
+                    var y = surfaceCenter.Y + loc.Y * mtplr;
+                    var z = surfaceCenter.Z + loc.Z * mtplr;
+                    surfaceCenter = new Vector3D(x / mtplr, y / mtplr, z / mtplr);
+                }
+                var dis = Math.Abs((pointOfInterest.Location - lastLocation).Length());
+                if (nearestPoints.Count == 0 || (lastLocation != null && nearestPoints.Any(x => (x.Location - lastLocation).Length() < dis)))
+                    nearestPoints.Add(pointOfInterest);
             }
             return added;
         }
 
+        Vector3D lastLocation;
         internal Vector3D GetNearestPoint(Vector3D vector3D)
         {
-            return PointsOfInterest.OrderBy(x => Math.Abs((vector3D - x.Location).Length())).FirstOrDefault().Location;
+            lastLocation = vector3D;
+            nearestPoints = nearestPoints.OrderBy(x => (vector3D - x.Location).Length()).ToList();
+            if(nearestPoints.Count >5)
+                nearestPoints.Remove(PointsOfInterest.LastOrDefault());
+            return nearestPoints.FirstOrDefault().Location;
         }
 
         internal PointOfInterest GetNearestSurveyPoint(Vector3D vector3D)

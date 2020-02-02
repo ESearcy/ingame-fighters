@@ -39,7 +39,8 @@ namespace SEMod.INGAME.classes.systems
             if (te == null)
             {
                 te = new TrackedEntity(pm, log);
-                trackedEntities.Add(te);
+                if(!te.name.ToLower().Contains("planet"))
+                    trackedEntities.Add(te);
             }
 
             te.Location = pm.Location;
@@ -148,7 +149,7 @@ namespace SEMod.INGAME.classes.systems
             var needToBeScanned = 
                 GetNearestPlanet().Regions.OrderBy(x => (x.surfaceCenter - point).Length()).Take(10)
                 .Where(x => x.PointsOfInterest.Any(y => (DateTime.Now - y.Timestamp).TotalMinutes > 20));
-
+            log.Debug("Checking for nuls " + point + "  " + needToBeScanned);
             PointOfInterest retrn = null;
             if (needToBeScanned.Any())
             {
@@ -158,7 +159,7 @@ namespace SEMod.INGAME.classes.systems
 
                 var weightedByImportance = surveyPoints.OrderBy(x => (x.Location - point).Length());
                 retrn = surveyPoints.Any() ? surveyPoints.First() : null;
-                // log.Debug((nearestUncheckedRegion != null) + " region found " + needToBeScanned.Count()+"  "+ (retrn!=null));
+                log.Debug((nearestUncheckedRegion != null) + " region found " + needToBeScanned.Count()+"  "+ (retrn!=null));
                 retrn.HasPendingOrder = true;
             }
             return retrn;

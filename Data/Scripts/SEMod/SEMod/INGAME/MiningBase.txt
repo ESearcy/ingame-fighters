@@ -447,7 +447,7 @@ var maxMass=(int)shipComponents.Thrusters.Where(x => x.WorldMatrix.Forward==cont
 UpdateInfoKey("Weight Information"," Mass: "+Mass+"kgMaxMass: "+(int)maxMass+"kg");
 }
 foreach (var op in operatingOrder)
-UpdateInfoKey(op.CallMethod.Method.Name+"",((int)op.GetAverageExecutionTime()+"ms"+" CallCountPerc: "+op.GetAverageCallCount()+"% CallDepthPer: "+op.GetAverageCallCount()+"%"));
+UpdateInfoKey(op.CallMethod.Method.Name+"",((int)op.GetAverageExecutionTime()+"ms"+" true-runtime: "+op.GetTrueAverageExecutionTime()+" CallCount: "+op.GetAverageCallCount()+" CallDepth: "+op.GetAverageCallCount()+""));
 UpdateInfoKey("Storage"," Mass: "+navigationSystems.RemoteControl.CalculateShipMass().PhysicalMass+" Max Mass: "+navigationSystems.GetMaxSupportedWeight());
 UpdateInfoKey("Power: ","Current: "+CurPower+" Max: "+MaxPower);
 if (NearestPlanet != null)
@@ -496,8 +496,15 @@ var messages=communicationSystems.RetrievePendingMessages();
 foreach (var message in messages)
 TransmitMessage(message);
 }
+TaskResult lastTask=null;
+TaskInfo lastTaskInfo=null;
 protected void RunNextOperation()
 {
+if (lastTask != null)
+{
+lastTask.trueRuntme=Runtime.LastRunTimeMs;
+lastTaskInfo.AddResult(lastTask);
+}
 if (lastOperationIndex==operatingOrder.Count())
 lastOperationIndex=0;
 long msStart=DateTime.Now.Ticks;
@@ -505,7 +512,8 @@ TaskInfo info=operatingOrder.ElementAt(lastOperationIndex);
 info.CallMethod();
 long msStop=DateTime.Now.Ticks;
 long timeTaken=msStop-msStart;
-info.AddResult(new TaskResult(timeTaken,0,Runtime.CurrentInstructionCount / 40000,Runtime.CurrentCallChainDepth / 40000));
+lastTask=new TaskResult(timeTaken,Runtime.CurrentInstructionCount,Runtime.CurrentCallChainDepth);
+lastTaskInfo=info;
 lastOperationIndex++;
 }
 protected void InternalSystemScan()
@@ -997,6 +1005,7 @@ public class Region
 {
 public long EntityId;
 public List<PointOfInterest> PointsOfInterest=new List<PointOfInterest>();
+public List<PointOfInterest> nearestPoints=new List<PointOfInterest>();
 public DateTime LastUpdated;
 public Vector3D PlanetCenter;
 public Vector3D surfaceCenter;
@@ -1048,12 +1057,31 @@ else if (PointsOfInterest.Count+1 < maxSavedPoints && !iscmd)
 {
 PointsOfInterest.Add(pointOfInterest);
 }
+if (PointsOfInterest.Count()==1)
+surfaceCenter=pointOfInterest.Location;
+else
+{
+var mtplr=PointsOfInterest.Count();
+var loc=pointOfInterest.Location;
+var x=surfaceCenter.X+loc.X*mtplr;
+var y=surfaceCenter.Y+loc.Y*mtplr;
+var z=surfaceCenter.Z+loc.Z*mtplr;
+surfaceCenter=new Vector3D(x / mtplr,y / mtplr,z / mtplr);
+}
+var dis=Math.Abs((pointOfInterest.Location-lastLocation).Length());
+if (nearestPoints.Count==0 || (lastLocation != null && nearestPoints.Any(x => (x.Location-lastLocation).Length() < dis)))
+nearestPoints.Add(pointOfInterest);
 }
 return added;
 }
+Vector3D lastLocation;
 internal Vector3D GetNearestPoint(Vector3D vector3D)
 {
-return PointsOfInterest.OrderBy(x => Math.Abs((vector3D-x.Location).Length())).FirstOrDefault().Location;
+lastLocation=vector3D;
+nearestPoints=nearestPoints.OrderBy(x => (vector3D-x.Location).Length()).ToList();
+if(nearestPoints.Count >5)
+nearestPoints.Remove(PointsOfInterest.LastOrDefault());
+return nearestPoints.FirstOrDefault().Location;
 }
 internal PointOfInterest GetNearestSurveyPoint(Vector3D vector3D)
 {
@@ -1767,6 +1795,7 @@ TrackedEntity te=trackedEntities.Where(x => x.EntityID==pm.TargetEntityId).First
 if (te==null)
 {
 te=new TrackedEntity(pm,log);
+if(!te.name.ToLower().Contains("planet"))
 trackedEntities.Add(te);
 }
 te.Location=pm.Location;
@@ -1854,6 +1883,7 @@ internal PointOfInterest GetNearestScanPoint(Vector3D point,int maxDistance)
 var needToBeScanned=
 GetNearestPlanet().Regions.OrderBy(x => (x.surfaceCenter-point).Length()).Take(10)
 .Where(x => x.PointsOfInterest.Any(y => (DateTime.Now-y.Timestamp).TotalMinutes > 20));
+log.Debug("Checking for nuls "+point+""+needToBeScanned);
 PointOfInterest retrn=null;
 if (needToBeScanned.Any())
 {
@@ -1861,6 +1891,7 @@ var nearestUncheckedRegion=needToBeScanned.First();
 var surveyPoints=nearestUncheckedRegion.PointsOfInterest.Where(x => !x.HasPendingOrder && (x.Location-point).Length()<maxDistance);
 var weightedByImportance=surveyPoints.OrderBy(x => (x.Location-point).Length());
 retrn=surveyPoints.Any() ? surveyPoints.First() : null;
+log.Debug((nearestUncheckedRegion != null)+" region found "+needToBeScanned.Count()+""+ (retrn!=null));
 retrn.HasPendingOrder=true;
 }
 return retrn;
@@ -2111,7 +2142,7 @@ private List<String> error=new List<String>();
 private IMyCubeGrid grid;
 public void Debug(String m)
 {
-debug.Add(m);
+debug.Add(DateTime.Now+" :- "+m);
 if (debug.Count > loglimit)
 debug.Remove(debug[0]);
 }
@@ -3041,18 +3072,21 @@ public double GetAverageCallDepth()
 {
 return PreviousResults.Max(a => a.percentCapDepth);
 }
+public double GetTrueAverageExecutionTime()
+{
+return PreviousResults.Max(a => a.trueRuntme);
+}
 }
 public class TaskResult
 {
 public long runtimeMs;
-public long operationCount;
+public double trueRuntme;
 public double percentCapDepth;
 public double percentCapCall;
-public TaskResult(long rm,long oc,double cc,double cd)
+public TaskResult(long rm,double cc,double cd)
 {
 percentCapDepth=cd;
 percentCapCall=cc;
 runtimeMs=rm;
-operationCount=oc;
 }
 }

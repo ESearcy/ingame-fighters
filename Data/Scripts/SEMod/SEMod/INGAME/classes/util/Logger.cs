@@ -37,7 +37,7 @@ namespace SEMod.INGAME.classes
 
         public void Debug(String m)
         {
-            debug.Add(m);
+            debug.Add(DateTime.Now+" :- "+m);
 
             if (debug.Count > loglimit)
                 debug.Remove(debug[0]);

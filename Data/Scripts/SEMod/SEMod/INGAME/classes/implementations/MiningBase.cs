@@ -613,7 +613,7 @@ namespace SEMod.INGAME.classes.implementations
 
                 //display operation details
                 foreach (var op in operatingOrder)
-                    UpdateInfoKey(op.CallMethod.Method.Name + "", ((int)op.GetAverageExecutionTime() + "ms" + " CallCountPerc: " + op.GetAverageCallCount() + "% CallDepthPer: " + op.GetAverageCallCount() + "%"));
+                    UpdateInfoKey(op.CallMethod.Method.Name + "", ((int)op.GetAverageExecutionTime() + "ms" + " true-runtime: " + op.GetTrueAverageExecutionTime() + " CallCount: " + op.GetAverageCallCount() + " CallDepth: " + op.GetAverageCallCount() + ""));
 
                 UpdateInfoKey("Storage", " Mass: " + navigationSystems.RemoteControl.CalculateShipMass().PhysicalMass + " Max Mass: " + navigationSystems.GetMaxSupportedWeight());
                 UpdateInfoKey("Power: ", "Current: " + CurPower + " Max: " + MaxPower);

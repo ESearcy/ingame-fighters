@@ -61,8 +61,16 @@ namespace SEMod.INGAME.classes.implementations
                 TransmitMessage(message);
         }
 
+        TaskResult lastTask = null;
+        TaskInfo lastTaskInfo = null;
         protected void RunNextOperation()
         {
+            if (lastTask != null)
+            {
+                lastTask.trueRuntme = Runtime.LastRunTimeMs;
+                lastTaskInfo.AddResult(lastTask);
+            }
+
             if (lastOperationIndex == operatingOrder.Count())
                 lastOperationIndex = 0;
 
@@ -72,10 +80,13 @@ namespace SEMod.INGAME.classes.implementations
 
             long msStop = DateTime.Now.Ticks;
             long timeTaken = msStop - msStart;
+            lastTask = new TaskResult(timeTaken,Runtime.CurrentInstructionCount, Runtime.CurrentCallChainDepth);
+            lastTaskInfo = info;
 
-            info.AddResult(new TaskResult(timeTaken, 0, Runtime.CurrentInstructionCount / 40000, Runtime.CurrentCallChainDepth / 40000));
             lastOperationIndex++;
         }
+        
+
 
         protected void InternalSystemScan()
         {
