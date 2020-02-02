@@ -12,3 +12,9 @@ H:\SEMODS\FighterCommand\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.
 H:\SEMODS\FighterCommand\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.csproj.CoreCompileInputs.cache
 H:\SEMODS\FighterCommand\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.exe
 H:\SEMODS\FighterCommand\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.pdb
+c:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\bin\Debug\ClassBuilder.exe.config
+c:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\bin\Debug\ClassBuilder.exe
+c:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\bin\Debug\ClassBuilder.pdb
+c:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.csprojAssemblyReference.cache
+c:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.exe
+c:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.pdb
