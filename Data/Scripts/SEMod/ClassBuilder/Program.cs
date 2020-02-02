@@ -11,9 +11,12 @@ namespace ClassBuilder
     {
         static void Main(string[] args)
         {
-            var path = "H:\\SEMODS\\FighterCommand\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes";
-            var configFile = "H:\\SEMODS\\FighterCommand\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes\\implementations";
-
+            var usepathone = true;
+            var rootpath = "C:\\Users\\elton\\Source\\Repos\\ingame-fighters";
+            var rootpath2 = "H:\\SEMODS\\FighterCommand";
+            var path = (usepathone?rootpath:rootpath2) +"\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes";
+            var configFile = (usepathone?rootpath:rootpath2) +"\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes\\implementations";
+            
 
             string[] files = Directory.GetFileSystemEntries(path, "*.cs", SearchOption.AllDirectories);
 

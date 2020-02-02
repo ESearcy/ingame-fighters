@@ -12,3 +12,9 @@ H:\SEMODS\FighterCommand\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.
 H:\SEMODS\FighterCommand\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.csproj.CoreCompileInputs.cache
 H:\SEMODS\FighterCommand\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.exe
 H:\SEMODS\FighterCommand\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.pdb
+C:\Users\elton\Source\Repos\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\bin\Debug\ClassBuilder.exe.config
+C:\Users\elton\Source\Repos\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\bin\Debug\ClassBuilder.exe
+C:\Users\elton\Source\Repos\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\bin\Debug\ClassBuilder.pdb
+C:\Users\elton\Source\Repos\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.csprojAssemblyReference.cache
+C:\Users\elton\Source\Repos\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.exe
+C:\Users\elton\Source\Repos\ingame-fighters\Data\Scripts\SEMod\ClassBuilder\obj\Debug\ClassBuilder.pdb
