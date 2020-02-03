@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Sandbox.ModAPI.Ingame;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using VRage.Game;
@@ -24,20 +25,19 @@ namespace SEMod.INGAME.classes
         Logger log;
         public String Type;
 
-        public TrackedEntity(ParsedMessage pm, Logger log)
+        public TrackedEntity(MyDetectedEntityInfo info, Logger log)
         {
             this.log = log;
             LastUpdated = DateTime.Now;
-            Location = pm.Location;
-            Velocity = pm.Velocity;
-            EntityID = pm.TargetEntityId;
-            name = pm.Name;
-            Radius = pm.TargetRadius;
-            DetailsString = pm.ToString();
-            Relationship = pm.Relationship;
-            nearestPoint = pm.AttackPoint;
-            Type = pm.Type;
-            UpdatePoints(new PointOfInterest(pm.AttackPoint, pm.TargetEntityId));
+            Location = info.Position;
+            Velocity = info.Velocity;
+            EntityID = info.EntityId;
+            name = info.Name;
+            Radius = (int)Math.Abs((info.BoundingBox.Min - info.BoundingBox.Max).Length());
+            Relationship = info.Relationship;
+            nearestPoint = info.HitPosition.Value;
+            Type = info.Type.ToString();
+            UpdatePoints(new PointOfInterest(nearestPoint, EntityID));
             //UpdateNearestPoints(new PointOfInterest(pm.AttackPoint, pm.TargetEntityId), Vector3D.Zero);
         }
 
@@ -49,22 +49,6 @@ namespace SEMod.INGAME.classes
                 PointsOfInterest.RemoveAt(0);
 
         }
-
-        //internal void UpdateNearestPoints(PointOfInterest pointOfInterest, Vector3D droneLocation)
-        //{
-        //    var furtherAway = NearestPoints.Where(x => Math.Abs((droneLocation - x.Location).Length()) > Math.Abs((droneLocation - pointOfInterest.Location).Length())).ToList();
-        //    if (furtherAway.Count() < 1)
-        //    {
-        //        NearestPoints.Add(pointOfInterest);
-        //    }
-        //    else if (NearestPoints.Count() == 0)
-        //    {
-        //        NearestPoints.Add(pointOfInterest);
-        //    }
-
-        //    while (NearestPoints.Count > 2)
-        //        NearestPoints.RemoveAt(1);
-        //}
 
         internal Vector3D GetNearestPoint(Vector3D vector3D)
         {

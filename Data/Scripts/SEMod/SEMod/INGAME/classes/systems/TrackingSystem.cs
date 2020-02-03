@@ -32,27 +32,26 @@ namespace SEMod.INGAME.classes.systems
             return (shipComponets.Sensors.Count() + shipComponets.Cameras.Count()) > 0;//trackedEntities.Count()>0 || KnownPlanets.Count()>0;
         }
 
-        public void UpdateTrackedEntity(ParsedMessage pm, bool selfcalled)
+        public void UpdateTrackedEntity(TrackedEntity pm, bool selfcalled)
         {
-            TrackedEntity te = trackedEntities.Where(x => x.EntityID == pm.TargetEntityId).FirstOrDefault();
+            TrackedEntity existing = trackedEntities.Where(x => x.EntityID == pm.EntityID).FirstOrDefault();
 
-            if (te == null)
+            if (existing == null)
             {
-                te = new TrackedEntity(pm, log);
-                if(!te.name.ToLower().Contains("planet"))
-                    trackedEntities.Add(te);
+                existing = pm;
+                if (!pm.name.ToLower().Contains("planet"))
+                    trackedEntities.Add(pm);
             }
 
-            te.Location = pm.Location;
-            te.Velocity = pm.Velocity;
-            te.LastUpdated = DateTime.Now;
-            te.Radius = pm.TargetRadius;
-            te.DetailsString = pm.ToString();
-            te.Relationship = pm.Relationship;
+            existing.Location = pm.Location;
+            existing.Velocity = pm.Velocity;
+            existing.LastUpdated = DateTime.Now;
+            existing.Radius = pm.Radius;
+            existing.Relationship = pm.Relationship;
 
             if (pm.AttackPoint != Vector3D.Zero)
             {
-                te.UpdatePoints(new PointOfInterest(pm.AttackPoint, 0));
+                existing.UpdatePoints(new PointOfInterest(pm.AttackPoint, 0));
             }
         }
 

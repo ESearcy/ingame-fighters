@@ -86,29 +86,24 @@ namespace SEMod.INGAME.classes.implementations
             lastOperationIndex++;
         }
         
-
-
         protected void InternalSystemScan()
         {
             try
             {
-                var cs = communicationSystems.IsOperational();
-                //
-                var ps = productionSystems.IsOperational();
-                var ss = storageSystem.IsOperational();
-                var ts = trackingSystems.IsOperational();
-                var ws = weaponSystems.IsOperational();
+                if(communicationSystems !=null)
+                    UpdateInfoKey("communicationSystems", BoolToOnOff(communicationSystems.IsOperational()) + "");
+                if (productionSystems != null)
+                    UpdateInfoKey("productionSystems", BoolToOnOff(productionSystems.IsOperational()) + "");
+                if (storageSystem != null)
+                    UpdateInfoKey("storageSystem", BoolToOnOff(storageSystem.IsOperational()) + "");
+                if (trackingSystems != null)
+                    UpdateInfoKey("trackingSystems", BoolToOnOff(trackingSystems.IsOperational()) + "");
+                if (weaponSystems != null)
+                    UpdateInfoKey("weaponSystems", BoolToOnOff(weaponSystems.IsOperational()) + "");
 
-                UpdateInfoKey("WeaponSystems", BoolToOnOff(ws) + "");
-                UpdateInfoKey("CommunicationSystems", BoolToOnOff(cs) + "");
-                // 
-                UpdateInfoKey("TrackingSystems", BoolToOnOff(ts) + "");
-                UpdateInfoKey("ProductionSystems", BoolToOnOff(ps) + "");
-                UpdateInfoKey("StorageSystem", BoolToOnOff(ss) + "");
                 CalculatePower();
-                storageSystem.UpdateStats();
             }
-            catch (Exception e) { log.Error("InternalSystemScan " + e.Message); }
+            catch (Exception e) { log.Error("InternalSystemScan " + e.StackTrace); }
         }
 
         protected double CurPower = 0;
@@ -137,24 +132,37 @@ namespace SEMod.INGAME.classes.implementations
             return conv ? "Online" : "Offline";
         }
 
-        protected void SensorScan()
+        Dictionary<long, MyDetectedEntityInfo> foundentities = new Dictionary<long, MyDetectedEntityInfo>();
+        protected void ScanLocalArea()
         {
             try
             {
-                ScanWithSensors();
-                ScanWithCameras();
+                foundentities.Clear();
+                ScanWithSensors(foundentities);
+                ScanWithCameras(foundentities);
+
+                if(trackingSystems != null)
+                {
+                    foundentities.ForEach(x => );
+                }
             }
-            catch (Exception e) { log.Error("SensorScan " + e.Message); }
+            catch (Exception e) { log.Error("SensorScan " + e.StackTrace); }
         }
 
+        public void TrackTarget(MyDetectedEntityInfo ent)
+        {
+            TrackedEntity trackedEntity = new TrackedEntity(ent, log);
+            trackingSystems.UpdateTrackedEntity(trackedEntity, true);
+            //var messagesToSend = trackingSystems.UpdateTrackedEntity(ent);
+        }
 
-        protected void ScanWithSensors()
+        protected void ScanWithSensors(Dictionary<long, MyDetectedEntityInfo> foundentities)
         {
             var miliseconds = (DateTime.Now - lastReportTime).TotalMilliseconds;
             if (miliseconds >= 1000 / sensorScansPerSecond)
             {
                 lastReportTime = DateTime.Now;
-                var foundentities = new Dictionary<long, String>();
+                
                 foreach (var sensor in shipComponents.Sensors)
                 {
                     sensor.DetectEnemy = true;
@@ -165,20 +173,15 @@ namespace SEMod.INGAME.classes.implementations
                     sensor.DetectStations = true;
                     sensor.DetectAsteroids = true;
 
-                    var ent = sensor.LastDetectedEntity;//LastDetectedEntity; 
+                    var ent = sensor.LastDetectedEntity;
 
                     if (ent.EntityId != 0)
                     {
-                        String EntityInformation = ParsedMessage.BuildPingEntityMessage(ent, Me.CubeGrid.EntityId, communicationSystems.GetMsgSntCount());
                         //communicationSystems.SendMessage(EntityInformation);
                         if (!foundentities.Keys.Contains(ent.EntityId))
-                            foundentities.Add(ent.EntityId, EntityInformation);
-
-                        ParseMessage(EntityInformation, true);
+                            foundentities.Add(ent.EntityId, ent);
                     }
                 }
-                foreach (var entity in foundentities)
-                    communicationSystems.SendMessage(entity.Value);
             }
         }
 
@@ -188,9 +191,8 @@ namespace SEMod.INGAME.classes.implementations
         protected int maxCameraRange = 2000;
         protected int maxCameraAngle = 90;
 
-        protected void ScanWithCameras()
+        protected void ScanWithCameras(Dictionary<long, MyDetectedEntityInfo> foundentities)
         {
-            var foundentities = new Dictionary<long, String>();
             foreach (var camera in shipComponents.Cameras)
             {
                 var maxAngle = maxCameraAngle;
@@ -231,21 +233,16 @@ namespace SEMod.INGAME.classes.implementations
 
                     if (ent.EntityId != 0)
                     {
-                        String EntityInformation = ParsedMessage.BuildPingEntityMessage(ent, Me.CubeGrid.EntityId, communicationSystems.GetMsgSntCount());
-                        ParseMessage(EntityInformation, true);
-                        //log.Debug("Entity Found: "+ ent.Type);
                         if (!foundentities.Keys.Contains(ent.EntityId))
-                            foundentities.Add(ent.EntityId, EntityInformation);
+                            foundentities.Add(ent.EntityId, ent);
                     }
                 }
             }
-            foreach (var entity in foundentities)
-                communicationSystems.SendMessage(entity.Value);
         }
 
-        private void TransmitMessage(String message)
+        private void TransmitMessage(String destination, String message)
         {
-                IGC.SendBroadcastMessage("fleet", message, TransmissionDistance.TransmissionDistanceMax);
+                IGC.SendBroadcastMessage(destination, message, TransmissionDistance.TransmissionDistanceMax);
                 //L.Debug("Transmiting: " + message);
         }
         protected void ParseMessage(string argument, bool selfCalled = false)

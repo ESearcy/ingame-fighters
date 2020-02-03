@@ -232,3 +232,9 @@ C:\Users\Elton\OneDrive\Space Engineers mods\FighterCommand\ingame-fighters\Data
 C:\Users\Elton\OneDrive\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\builder\obj\Debug\builder.csprojAssemblyReference.cache
 C:\Users\Elton\OneDrive\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\builder\obj\Debug\builder.exe
 C:\Users\Elton\OneDrive\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\builder\obj\Debug\builder.pdb
+C:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\builder\bin\Debug\builder.exe.config
+C:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\builder\bin\Debug\builder.exe
+C:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\builder\bin\Debug\builder.pdb
+C:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\builder\obj\Debug\builder.csprojAssemblyReference.cache
+C:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\builder\obj\Debug\builder.exe
+C:\Users\elton\OneDrive\Documents\Space Engineers mods\FighterCommand\ingame-fighters\Data\Scripts\SEMod\builder\obj\Debug\builder.pdb
