@@ -4,6 +4,7 @@ using System.Linq;
 using SEMod.INGAME.classes.systems;
 using SEMod.INGAME.classes.model;
 using Sandbox.ModAPI.Ingame;
+using VRageMath;
 
 namespace SEMod.INGAME.classes.implementations
 {
@@ -20,11 +21,12 @@ namespace SEMod.INGAME.classes.implementations
         protected Logger log;
 
         protected CommunicationSystem communicationSystems;
-        protected ProductionSystem productionSystems;
+        
         protected ShipComponents shipComponents;
-        protected StorageSystem storageSystem;
         protected TrackingSystem trackingSystems;
         protected WeaponSystem weaponSystems;
+        protected DateTime startTime = DateTime.Now;
+
 
         protected Dictionary<String, object> shipInfoKeys = new Dictionary<string, object>();
 
@@ -58,7 +60,7 @@ namespace SEMod.INGAME.classes.implementations
         {
             var messages = communicationSystems.RetrievePendingMessages();
             foreach (var message in messages)
-                TransmitMessage(message);
+               TransmitMessage("fleet", message);
         }
 
         TaskResult lastTask = null;
@@ -74,28 +76,21 @@ namespace SEMod.INGAME.classes.implementations
             if (lastOperationIndex == operatingOrder.Count())
                 lastOperationIndex = 0;
 
-            long msStart = DateTime.Now.Ticks;
             TaskInfo info = operatingOrder.ElementAt(lastOperationIndex);
             info.CallMethod();
 
-            long msStop = DateTime.Now.Ticks;
-            long timeTaken = msStop - msStart;
-            lastTask = new TaskResult(timeTaken,Runtime.CurrentInstructionCount, Runtime.CurrentCallChainDepth);
+            lastTask = new TaskResult(Runtime.CurrentInstructionCount, Runtime.CurrentCallChainDepth);
             lastTaskInfo = info;
 
             lastOperationIndex++;
         }
         
-        protected void InternalSystemScan()
+        protected void InternalSystemCheck()
         {
             try
             {
                 if(communicationSystems !=null)
                     UpdateInfoKey("communicationSystems", BoolToOnOff(communicationSystems.IsOperational()) + "");
-                if (productionSystems != null)
-                    UpdateInfoKey("productionSystems", BoolToOnOff(productionSystems.IsOperational()) + "");
-                if (storageSystem != null)
-                    UpdateInfoKey("storageSystem", BoolToOnOff(storageSystem.IsOperational()) + "");
                 if (trackingSystems != null)
                     UpdateInfoKey("trackingSystems", BoolToOnOff(trackingSystems.IsOperational()) + "");
                 if (weaponSystems != null)
@@ -120,6 +115,45 @@ namespace SEMod.INGAME.classes.implementations
             }
         }
 
+        //references only. lists exist in specific systems, just sharing to save memory & allocations.
+        Dictionary<String, String> all_refs = new Dictionary<string, string>();
+        public void UpdateSystemScreens()
+        {
+            try
+            {
+                all_refs.Clear();
+                if (trackingSystems != null)
+                    foreach (var screen in trackingSystems.GetScreenInfo())
+                        all_refs.Add(screen.Key, screen.Value);
+
+                Mass = (int)(GetCargoMass() + shipComponents.AllBlocks.Sum(x => x.Mass));
+
+                var controlBlock = shipComponents.ControlUnits.FirstOrDefault();
+
+                //if your ship has a remote controll, it will tell you the supported mass & current mass
+                if (controlBlock != null)
+                {
+                    var maxMass = (int)shipComponents.Thrusters.Where(x => x.WorldMatrix.Forward == controlBlock.WorldMatrix.Forward).Sum(x => x.MaxThrust) / (controlBlock.GetNaturalGravity().Length());
+                    UpdateInfoKey("Weight Information", " Mass: " + Mass + "kg  MaxMass: " + (int)maxMass + "kg");
+                }
+
+                foreach (var op in operatingOrder)
+                    UpdateInfoKey(op.CallMethod.Method.Name + "", (
+                        " true-runtime: " + op.GetTrueAverageExecutionTime() +
+                        " CallCount: " + op.GetAverageCallCount() +
+                        " CallDepth: " + op.GetAverageCallCount() + ""));
+
+                log.DisplayLogs(shipComponents.TextPanels, all_refs);
+            }
+            catch (Exception e)
+            {
+                log.Error("UpdateSystemScreens " + e.StackTrace);
+            }
+
+            log.DisplayLogScreens();
+
+        }
+
         protected int InitialBlockCount;
 
         protected double GetHealth()
@@ -132,7 +166,7 @@ namespace SEMod.INGAME.classes.implementations
             return conv ? "Online" : "Offline";
         }
 
-        Dictionary<long, MyDetectedEntityInfo> foundentities = new Dictionary<long, MyDetectedEntityInfo>();
+        Dictionary<long, TrackedEntity> foundentities = new Dictionary<long, TrackedEntity>();
         protected void ScanLocalArea()
         {
             try
@@ -143,46 +177,65 @@ namespace SEMod.INGAME.classes.implementations
 
                 if(trackingSystems != null)
                 {
-                    foundentities.ForEach(x => );
+                    foreach(var t in foundentities)
+                        TrackTarget(t.Value);
                 }
             }
             catch (Exception e) { log.Error("SensorScan " + e.StackTrace); }
         }
 
-        public void TrackTarget(MyDetectedEntityInfo ent)
+        public void TrackTarget(TrackedEntity ent)
         {
-            TrackedEntity trackedEntity = new TrackedEntity(ent, log);
-            trackingSystems.UpdateTrackedEntity(trackedEntity, true);
+            trackingSystems.TrackEntity(ent, true);
             //var messagesToSend = trackingSystems.UpdateTrackedEntity(ent);
         }
 
-        protected void ScanWithSensors(Dictionary<long, MyDetectedEntityInfo> foundentities)
+        int sensorindex = 0;
+
+        protected void ScanWithSensors(Dictionary<long, TrackedEntity> foundentities)
         {
+            if (sensorindex == shipComponents.Sensors.Count())
+                sensorindex = 0;
+
             var miliseconds = (DateTime.Now - lastReportTime).TotalMilliseconds;
-            if (miliseconds >= 1000 / sensorScansPerSecond)
+            if (miliseconds >= 1000 / sensorScansPerSecond && sensorindex < shipComponents.Sensors.Count())
             {
                 lastReportTime = DateTime.Now;
-                
-                foreach (var sensor in shipComponents.Sensors)
+
+                var sensor = shipComponents.Sensors[sensorindex];
+                sensor.DetectEnemy = true;
+                sensor.DetectPlayers = true;
+                sensor.DetectLargeShips = true;
+                sensor.DetectSmallShips = true;
+                sensor.DetectOwner = false;
+                sensor.DetectStations = true;
+                sensor.DetectAsteroids = true;
+
+                var ent = sensor.LastDetectedEntity;
+
+                if (ent.EntityId != 0)
                 {
-                    sensor.DetectEnemy = true;
-                    sensor.DetectPlayers = true;
-                    sensor.DetectLargeShips = true;
-                    sensor.DetectSmallShips = true;
-                    sensor.DetectOwner = false;
-                    sensor.DetectStations = true;
-                    sensor.DetectAsteroids = true;
-
-                    var ent = sensor.LastDetectedEntity;
-
-                    if (ent.EntityId != 0)
+                    //communicationSystems.SendMessage(EntityInformation);
+                    if (!foundentities.Keys.Contains(ent.EntityId))
                     {
-                        //communicationSystems.SendMessage(EntityInformation);
-                        if (!foundentities.Keys.Contains(ent.EntityId))
-                            foundentities.Add(ent.EntityId, ent);
+                        //var t = new TrackedEntity(ent.Position, ent.Velocity, ent.HitPosition.Value, ent.EntityId, ent.Name, 0, ent.Relationship, ent.HitPosition.Value, ent.Type.ToString(), log);
+                        var t = new TrackedEntity(
+                            ent.Position
+                            , ent.Velocity
+                            , ent.Position
+                            , ent.EntityId
+                            , ent.Name
+                            , 0
+                            , ent.Relationship
+                            , ent.Position
+                            , ent.Type.ToString()
+                            , log); ;
+                        foundentities.Add(ent.EntityId, t);
                     }
                 }
             }
+
+            sensorindex++;
         }
 
         protected int pitch = 0;
@@ -191,53 +244,62 @@ namespace SEMod.INGAME.classes.implementations
         protected int maxCameraRange = 2000;
         protected int maxCameraAngle = 90;
 
-        protected void ScanWithCameras(Dictionary<long, MyDetectedEntityInfo> foundentities)
+        int cameraIndex = 0;
+        protected void ScanWithCameras(Dictionary<long, TrackedEntity> foundentities)
         {
-            foreach (var camera in shipComponents.Cameras)
+            if (cameraIndex == shipComponents.Cameras.Count())
+                cameraIndex = 0;
+
+            var camera = shipComponents.Cameras[cameraIndex];
+            
+            var maxAngle = maxCameraAngle;
+            //== 0 ? camera.RaycastConeLimit : maxCameraAngle;
+            var maxRange = maxCameraRange;
+            //== 0? camera.RaycastDistanceLimit: maxCameraRange;
+            if (!camera.EnableRaycast)
+                camera.EnableRaycast = true;
+
+            var timeToScan = camera.TimeUntilScan(range);
+
+            if (timeToScan <= 0 && cameraIndex < shipComponents.Cameras.Count())
             {
-                var maxAngle = maxCameraAngle;
-                //== 0 ? camera.RaycastConeLimit : maxCameraAngle;
-                var maxRange = maxCameraRange;
-                //== 0? camera.RaycastDistanceLimit: maxCameraRange;
-                if (!camera.EnableRaycast)
-                    camera.EnableRaycast = true;
+                pitch -= 5;
 
-                var timeToScan = camera.TimeUntilScan(range);
-
-                if (timeToScan <= 0)
+                if (pitch <= -maxAngle)
                 {
-                    pitch -= 5;
-
-                    if (pitch <= -maxAngle)
-                    {
-                        pitch = pitch * -1;
-                        yaw -= 5;
-                        //log.Debug("flipping pitch");
-                    }
-                    if (yaw <= -maxAngle)
-                    {
-                        yaw = yaw * -1;
-                        range -= 500;
-                        //log.Debug("flipping yaw");
-                    }
-                    if (range <= 1)
-                    {
-                        range = maxCameraRange;
-                        // log.Debug("flipping range");
-                    }
+                    pitch = pitch * -1;
+                    yaw -= 5;
+                    //log.Debug("flipping pitch");
+                }
+                if (yaw <= -maxAngle)
+                {
+                    yaw = yaw * -1;
+                    range -= 200;
+                    //log.Debug("flipping yaw");
+                }
+                if (range <= 1)
+                {
+                    range = maxCameraRange;
+                    // log.Debug("flipping range");
+                }
 
 
-                    //var ent = camera.Raycast(range, pitch, yaw); 
-                    var ent = camera.Raycast(range, pitch, yaw);
-                    //log.Debug("Scanning Raycast: \nrange:pitch:yaw " + range + ":" + pitch + ":" + yaw);
+                //var ent = camera.Raycast(range, pitch, yaw); 
+                var ent = camera.Raycast(range, pitch, yaw);
+                //log.Debug("Scanning Raycast: \nrange:pitch:yaw " + range + ":" + pitch + ":" + yaw);
 
-                    if (ent.EntityId != 0)
+                if (ent.EntityId != 0)
+                {
+                    if (!foundentities.Keys.Contains(ent.EntityId))
                     {
-                        if (!foundentities.Keys.Contains(ent.EntityId))
-                            foundentities.Add(ent.EntityId, ent);
+                        var t = new TrackedEntity(ent.Position, ent.Velocity, ent.HitPosition.Value, ent.EntityId, ent.Name, (int)Math.Abs((ent.BoundingBox.Min - ent.BoundingBox.Max).Length()), ent.Relationship, ent.HitPosition.Value, ent.Type.ToString(), log);
+                        //log.Debug("initial camera points: "+ ent.HitPosition.Value +":    "+ ent.Position);
+                        foundentities.Add(ent.EntityId, t);
                     }
                 }
+                
             }
+            cameraIndex++;
         }
 
         private void TransmitMessage(String destination, String message)
@@ -261,17 +323,21 @@ namespace SEMod.INGAME.classes.implementations
                     communicationSystems.SendMessage(pm.ToString());
                 }
 
-                switch (pm.MessageType)
-                {
-                    case MessageCode.PingEntity:
-                        //if its a new point of intrest, sync the position with all ships.
-                        if (pm.Type.Trim().ToLower().Contains("planet") && trackingSystems.UpdatePlanetData(pm, selfCalled))
-                            communicationSystems.SendMessage(pm.ToString());
-                        else
-                            trackingSystems.UpdateTrackedEntity(pm, selfCalled);
+                //switch (pm.MessageType)
+                //{
+                //   // case MessageCode.PingEntity:
+                //        //if its a new point of intrest, sync the position with all ships.
 
-                        break;
-                }
+                //    //    if (!pm.Type.Trim().ToLower().Contains("planet"))// && trackingSystems.UpdatePlanetData(pm, selfCalled))
+                //    //    {
+                //    //        var ent = new TrackedEntity(pm, log);
+                //    //        trackingSystems.UpdateTrackedEntity(pm, selfCalled);
+                //    //    }
+                //        //communicationSystems.SendMessage(pm.ToString());
+
+
+                //            break;
+                //}
             }
             catch (Exception e) { log.Error(e.Message); }
         }
@@ -282,10 +348,8 @@ namespace SEMod.INGAME.classes.implementations
         {
             try
             {
-                log.DisplayTargets(trackingSystems.getTargets());
                 trackingSystems.Update();
                 NearestPlanet = trackingSystems.GetNearestPlanet();
-                //log.Debug("local Planet region count: "+NearestPlanet.Regions.Count());
             }
             catch (Exception e) { log.Error("UpdateTrackedTargets " + e.Message); }
         }

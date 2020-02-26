@@ -15,9 +15,14 @@ namespace SEMod.INGAME.classes.systems
         private IMyCubeGrid cubeGrid;
         private ShipComponents shipComponets;
         bool iscmd;
+        Region currentRegion = null;
 
         List<TrackedEntity> trackedEntities = new List<TrackedEntity>();
         List<PlanetaryData> KnownPlanets = new List<PlanetaryData>();
+        string tracked_targets_logs = "";
+        Dictionary<string, string> screen_texts;
+        PlanetaryData nearestPlanet;
+        Vector3D altitude = Vector3D.Zero;
 
         public TrackingSystem(Logger log, IMyCubeGrid cubeGrid, ShipComponents shipComponets, bool iscommand)
         {
@@ -25,6 +30,7 @@ namespace SEMod.INGAME.classes.systems
             this.log = log;
             this.cubeGrid = cubeGrid;
             this.shipComponets = shipComponets;
+            screen_texts = new Dictionary<string, string>();
         }
 
         internal bool IsOperational()
@@ -32,15 +38,28 @@ namespace SEMod.INGAME.classes.systems
             return (shipComponets.Sensors.Count() + shipComponets.Cameras.Count()) > 0;//trackedEntities.Count()>0 || KnownPlanets.Count()>0;
         }
 
-        public void UpdateTrackedEntity(TrackedEntity pm, bool selfcalled)
+        public void TrackEntity(TrackedEntity pm, bool selfcalled)
         {
-            TrackedEntity existing = trackedEntities.Where(x => x.EntityID == pm.EntityID).FirstOrDefault();
+            if (!pm.Name.ToLower().Contains("planet"))
+                UpdateTrackedEntity(pm);
+            if (pm.Name.ToLower().Contains("planet"))
+                UpdateSurfaceLocation(pm);
+        }
+        public void UpdateTrackedEntity(ParsedMessage pm)
+        {
+            TrackedEntity target = new TrackedEntity(pm.Location, pm.Velocity, pm.AttackPoint, pm.EntityId, pm.Name, (int)pm.ShipSize, pm.Relationship, pm.AttackPoint, pm.Type, log);
+            UpdateTrackedEntity(target);
+        }
+        public void UpdateTrackedEntity(TrackedEntity pm)
+        {
+            var id = pm.EntityID;
+            TrackedEntity existing = trackedEntities.Where(x => x.EntityID == id).FirstOrDefault();
 
             if (existing == null)
             {
                 existing = pm;
-                if (!pm.name.ToLower().Contains("planet"))
-                    trackedEntities.Add(pm);
+                trackedEntities.Add(pm);
+
             }
 
             existing.Location = pm.Location;
@@ -55,49 +74,85 @@ namespace SEMod.INGAME.classes.systems
             }
         }
 
-        List<String> idsFound = new List<string>();
-        public bool UpdatePlanetData(ParsedMessage pm, bool selfcalled)
+
+        public void UpdateSurfaceLocation(TrackedEntity pm)
         {
-            //log.Debug("attempting to update planet data");
-            bool locationAdded = false;
-            var lastfour = (pm.EntityId + "");
-            lastfour = lastfour.Substring(lastfour.Length - 4);
-            if (!idsFound.Contains(lastfour + ""))
-            {
-                idsFound.Add(lastfour + "");
-                //log.Debug(lastfour + " Processed" );
-            }
+            //log.Debug("initial location to save: "+ pm.AttackPoint);
+            var point = new PointOfInterest(pm.AttackPoint, pm.EntityID);
 
-            var existingPlanet = KnownPlanets.Where(x => x.PlanetCenter == pm.Location).FirstOrDefault();
-            if (existingPlanet != null)
-            {
-                locationAdded = existingPlanet.UpdatePlanetaryData(new Region(pm.TargetEntityId, pm.Location, new PointOfInterest(pm.AttackPoint, pm.TargetEntityId), cubeGrid.GetPosition(), iscmd), cubeGrid.GetPosition());
-                //log.Debug("updated planet data");
-            }
-            else
-            {
-                KnownPlanets.Add(new PlanetaryData(log, pm.Location, new Region(pm.TargetEntityId, pm.Location, new PointOfInterest(pm.AttackPoint, pm.TargetEntityId), cubeGrid.GetPosition(), iscmd), cubeGrid.GetPosition()));
-                locationAdded = true;
-                //log.Debug("Logged New planet discovery: "+ pm.Location);
-            }
-            return locationAdded;
+            //log.Debug(pm.AttackPoint+"");
+            PlanetaryData planet = KnownPlanets.FirstOrDefault(x => x.PlanetCenter == pm.Location);
+            Region region = null;
+            
+            region = new Region(pm.EntityID, pm.Location, point, iscmd, cubeGrid.GetPosition(), log);
+            if(planet !=null)
+                planet.UpdatePlanetaryData(region, cubeGrid.GetPosition());
 
+            //if no planet
+            if (planet == null) { 
+                planet = CreateNewPlanet(pm.EntityID, pm.Location, region, point, cubeGrid.GetPosition());
+
+
+                //if point is in current region, update region
+                if (currentRegion.EntityId == pm.EntityID)
+                {
+                    currentRegion.UpdatePoints(point);
+                }
+
+                //if point in another region, increase its scan density
+                //log.Debug("Number of regions: " + nearestPlanet.Regions.Count);
+            }
+            if (KnownPlanets.Count > 1)
+                nearestPlanet = KnownPlanets.OrderBy(x => (x.PlanetCenter - pm.Location).Length()).FirstOrDefault();
         }
 
-        PlanetaryData nearestPlanet;
-        Vector3D altitude = Vector3D.Zero;
+        public void UpdateSurfaceLocation(ParsedMessage pm)
+        {
+            TrackedEntity target = new TrackedEntity(pm.Location, pm.Velocity, pm.AttackPoint, pm.EntityId, pm.Name, (int)pm.ShipSize, pm.Relationship, pm.AttackPoint, pm.Type, log);
+            UpdateSurfaceLocation(target);
+        }
+
+        private PlanetaryData CreateNewPlanet(long id, Vector3D loc, Region newregion, PointOfInterest point, Vector3D cubegridLoc)
+        {
+            PlanetaryData planet = null;
+            
+            //log.Debug("Logging new planet: "+ KnownPlanets.Count);
+
+            planet = new PlanetaryData(log, loc, newregion, cubegridLoc);
+
+            currentRegion = newregion;
+            nearestPlanet = planet;
+            KnownPlanets.Add(planet);
+            
+
+            return planet;
+        }
 
         public PlanetaryData GetNearestPlanet()
         {
-            var np = KnownPlanets.OrderBy(y => (y.PlanetCenter - cubeGrid.GetPosition()).Length());
-            return np.FirstOrDefault();
+            return nearestPlanet;
         }
 
         public void Update()
         {
-            nearestPlanet = GetNearestPlanet();
             if (nearestPlanet != null)
                 altitude = (nearestPlanet.GetNearestPoint(cubeGrid.GetPosition()) - cubeGrid.GetPosition());
+
+            long msStop = DateTime.Now.Ticks;
+            long timeTaken = msStop - last_slow_update;
+
+            if (timeTaken >= 3000)
+            {
+                SlowUpdate();
+                last_slow_update = msStop;
+            }
+        }
+
+        long last_slow_update = DateTime.Now.Ticks;
+
+        public void SlowUpdate()
+        {
+            UpdateTrackedEntitiesScreens();
         }
 
         internal double GetAltitude()
@@ -119,6 +174,31 @@ namespace SEMod.INGAME.classes.systems
         {
             return trackedEntities.Where(x => x.EntityID == targetEntityID).FirstOrDefault();
         }
+        
+        internal Dictionary<string, string> GetScreenInfo()
+        {
+            //screens:
+            screen_texts.Clear();
+            screen_texts.Add("tracked_grids", tracked_targets_logs);
+            return screen_texts;
+        }
+
+        
+        private void UpdateTrackedEntitiesScreens()
+        {
+            //log.Debug("Entities "+ trackedEntities.Count());
+            tracked_targets_logs = "ID, Type, Name, Relationship, Distance, Last Updated (s)\n\n";
+            foreach (var ent in trackedEntities.OrderBy(x => x.Relationship))
+            {
+                var near = ent.GetNearestPoint(cubeGrid.GetPosition());
+                var distance = (int)(near - cubeGrid.GetPosition()).Length();
+                var lastfour = (ent.EntityID + "");
+                lastfour = lastfour.Substring(lastfour.Length - 4);
+                var record = lastfour + "," + ent.Type + "," + ent.Name + "," + ent.Relationship + "," + (int)distance + "m," + (int)(DateTime.Now - ent.LastUpdated).TotalSeconds;
+                //log.Debug(record);
+                tracked_targets_logs = tracked_targets_logs + record + "\n";
+            }
+        }
 
         public List<TrackedEntity> getCombatTargets(Vector3D point)
         {
@@ -130,13 +210,14 @@ namespace SEMod.INGAME.classes.systems
         internal PointOfInterest GetNextMiningSamplePoint(Vector3D point)
         {
             var nearestUncheckedRegions = GetNearestPlanet().Regions
-                .OrderBy(x => (x.surfaceCenter - point).Length())
-                .Where(x => x.PointsOfInterest.Count(y => y.Mined) < 5);
+                .OrderBy(x => (x.Value.surfaceCenter - point).Length())
+                .Where(x => x.Value.PointsOfInterest.Count(y => y.Mined) < 5);
+
             if (nearestUncheckedRegions.Any())
             {
                 var nearestUncheckedRegion = nearestUncheckedRegions.FirstOrDefault();
 
-                var surveyPoints = nearestUncheckedRegion.PointsOfInterest.Where(x => !x.Mined && !x.HasPendingOrder).OrderBy(x => (x.Location - point).Length());
+                var surveyPoints = nearestUncheckedRegion.Value.PointsOfInterest.Where(x => !x.Mined && !x.HasPendingOrder).OrderBy(x => (x.Location - point).Length());
 
                 return surveyPoints.Any() ? surveyPoints.First() : null;
             }
@@ -146,19 +227,22 @@ namespace SEMod.INGAME.classes.systems
         internal PointOfInterest GetNearestScanPoint(Vector3D point, int maxDistance)
         {
             var needToBeScanned = 
-                GetNearestPlanet().Regions.OrderBy(x => (x.surfaceCenter - point).Length()).Take(10)
-                .Where(x => x.PointsOfInterest.Any(y => (DateTime.Now - y.Timestamp).TotalMinutes > 20));
-            log.Debug("Checking for nuls " + point + "  " + needToBeScanned);
+                GetNearestPlanet().Regions.OrderBy(x => (x.Value.surfaceCenter - point).Length()).Take(10)
+                .Where(x => x.Value.PointsOfInterest.Any(y => (DateTime.Now - y.Timestamp).TotalMinutes > 20));
+
+            //log.Debug("Checking for nuls " + point + "  " + needToBeScanned);
+
             PointOfInterest retrn = null;
+
             if (needToBeScanned.Any())
             {
                 var nearestUncheckedRegion = needToBeScanned.First();
 
-                var surveyPoints = nearestUncheckedRegion.PointsOfInterest.Where(x => !x.HasPendingOrder && (x.Location - point).Length()<maxDistance);
+                var surveyPoints = nearestUncheckedRegion.Value.PointsOfInterest.Where(x => !x.HasPendingOrder && (x.Location - point).Length()<maxDistance);
 
                 var weightedByImportance = surveyPoints.OrderBy(x => (x.Location - point).Length());
                 retrn = surveyPoints.Any() ? surveyPoints.First() : null;
-                log.Debug((nearestUncheckedRegion != null) + " region found " + needToBeScanned.Count()+"  "+ (retrn!=null));
+                //log.Debug((nearestUncheckedRegion.Value != null) + " region found " + needToBeScanned.Count()+"  "+ (retrn!=null));
                 retrn.HasPendingOrder = true;
             }
             return retrn;
@@ -166,15 +250,14 @@ namespace SEMod.INGAME.classes.systems
 
         internal void UpdateScanPoint(PointOfInterest pointOfIntrest)
         {
-            var regions = GetNearestPlanet().Regions.Where(x => x.EntityId == pointOfIntrest.regionEntityID);
-            var region = regions.FirstOrDefault();
+            
             //log.Debug("region found: " + (region != null));
-            if (region != null)
+            if (currentRegion != null)
             {
-                var pointOfIntrestToUpdate = region.PointsOfInterest.Where(x => x.Location == pointOfIntrest.Location).FirstOrDefault();
+                var pointOfIntrestToUpdate = currentRegion.PointsOfInterest.Where(x => x.Location == pointOfIntrest.Location).FirstOrDefault();
                 //log.Debug("pointOfIntrest found: " + (pointOfIntrestToUpdate != null));
-                region.PointsOfInterest.Remove(pointOfIntrestToUpdate);
-                region.PointsOfInterest.Add(pointOfIntrest);
+                currentRegion.PointsOfInterest.Remove(pointOfIntrestToUpdate);
+                currentRegion.PointsOfInterest.Add(pointOfIntrest);
             }
         }
     }

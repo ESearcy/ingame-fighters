@@ -24,10 +24,6 @@ namespace SEMod.INGAME.classes.model
             while (PreviousResults.Count() > maxResultsKept)
                 PreviousResults.RemoveAt(0);
         }
-        public double GetAverageExecutionTime()
-        {
-            return PreviousResults.Average(a => a.runtimeMs);
-        }
         public double GetAverageCallCount()
         {
             return PreviousResults.Max(a => a.percentCapCall);
@@ -40,19 +36,18 @@ namespace SEMod.INGAME.classes.model
         {
             return PreviousResults.Max(a => a.trueRuntme);
         }
+
     }
 
     public class TaskResult
     {
-        public long runtimeMs;
         public double trueRuntme;
         public double percentCapDepth;
         public double percentCapCall;
-        public TaskResult(long rm, double cc, double cd)
+        public TaskResult(double cc, double cd)
         {
             percentCapDepth = cd;
             percentCapCall = cc;
-            runtimeMs = rm;
         }
     }
 

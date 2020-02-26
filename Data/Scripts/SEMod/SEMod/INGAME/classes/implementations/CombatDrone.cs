@@ -19,18 +19,17 @@ namespace SEMod.INGAME.classes.implementations
 
             communicationSystems = new CommunicationSystem(log, Me.CubeGrid, shipComponents);
             navigationSystems = new NavigationSystem(log, Me.CubeGrid, shipComponents);
-            productionSystems = new ProductionSystem(log, Me.CubeGrid, shipComponents);
-            storageSystem = new StorageSystem(log, Me.CubeGrid, shipComponents);
+
             trackingSystems = new TrackingSystem(log, Me.CubeGrid, shipComponents, false);
             weaponSystems = new WeaponSystem(log, Me.CubeGrid, shipComponents);
 
             operatingOrder.AddLast(new TaskInfo(LocateAllParts));
-            operatingOrder.AddLast(new TaskInfo(InternalSystemScan));
+            operatingOrder.AddLast(new TaskInfo(InternalSystemCheck));
             operatingOrder.AddLast(new TaskInfo(NavigationCheck));
             operatingOrder.AddLast(new TaskInfo(RecieveFleetMessages));
             operatingOrder.AddLast(new TaskInfo(SendPendingMessages));
             operatingOrder.AddLast(new TaskInfo(FollowOrders));
-            operatingOrder.AddLast(new TaskInfo(SensorScan));
+            operatingOrder.AddLast(new TaskInfo(ScanLocalArea));
             operatingOrder.AddLast(new TaskInfo(UpdateTrackedTargets));
             operatingOrder.AddLast(new TaskInfo(UpdateDisplays));
             operatingOrder.AddLast(new TaskInfo(FollowOrders));
@@ -79,6 +78,7 @@ namespace SEMod.INGAME.classes.implementations
         private void RecieveFleetMessages()
         {
             var messages = RecieveMessages();
+            //log.Debug("recieved Message: " + messages);
             foreach (var mes in messages)
             {
                 var pm = communicationSystems.ParseMessage(mes);
@@ -87,13 +87,13 @@ namespace SEMod.INGAME.classes.implementations
                 {
                     registered = true;
                     CommandShipEntity = pm.EntityId;
-                    log.Debug("Registered!!");
+                    //log.Debug("Registered!!");
                 }
 
                 if (ParsedMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
                 {
                     pm.NumBounces++;
-                    //LOG.Debug("Bounced Message");
+                    //log.Debug("Bounced Message");
                     communicationSystems.SendMessage(pm.ToString());
                 }
 
@@ -155,14 +155,27 @@ namespace SEMod.INGAME.classes.implementations
             }
             catch (Exception e) { log.Error("FollowOrders " + e.Message + " " + e.StackTrace); }
         }
-        private int CurrentMass = 0;
+
+        int CurrentInvVolume = 0;
+        int MaxInvVolume = 0;
         public void SendUpdate(bool isRegistration = false)
         {
             Docked = shipComponents.Connectors.Any(x => x.Status == MyShipConnectorStatus.Connected);
 
-            CurrentMass = (int)storageSystem.GetWeight();//(int)navigationSystems.RemoteControl.CalculateShipMass().PhysicalMass;
+            CurrentInvVolume = 0;
+            MaxInvVolume = 0;
+            foreach (var block in shipComponents.AllMyBlocks)
+            {
+                for (int i = 0; i < block.InventoryCount; i++)
+                {
+                    var inv = block.GetInventory(i);
+                    CurrentInvVolume += (int)inv.CurrentVolume;
+                    MaxInvVolume += (int)inv.MaxVolume;
+                }
+                //CurrentMass += (int)block.Mass;
+                //CurrentMass += block.HasInventory ? (int)block.GetInventory().CurrentMass : 0;
+            }
 
-            var maxCargo = navigationSystems.MaxSupportedWeight / navigationSystems.RemoteControl.GetNaturalGravity().Length();
             String updateMessage = ParsedMessage.CreateUpdateMessage(
                 //basic details
                 Me.CubeGrid.EntityId,
@@ -175,8 +188,8 @@ namespace SEMod.INGAME.classes.implementations
                 //grid info
                 Me.CubeGrid.GetPosition(),
                 Me.CubeGrid.GridSize,
-                (int)CurrentMass,
-                (int)maxCargo,
+                (int)CurrentInvVolume,
+                (int)MaxInvVolume,
                 //docking
                 shipComponents.MergeBlocks.Count(),
                 shipComponents.Connectors.Count(),
@@ -331,7 +344,7 @@ namespace SEMod.INGAME.classes.implementations
                         var distanceFromCPK1 = (myloc - preDockLocation).Length();
 
                         log.Debug("Dock cp2 " + distanceFromCPK1);
-                        if (distanceFromCPK1 <= .5 && CurrentOrder.DockRouteIndex > 1)
+                        if (distanceFromCPK1 <= 1 && CurrentOrder.DockRouteIndex >= 1)
                         {
                             CurrentOrder.DockRouteIndex--;
                         }
@@ -382,19 +395,7 @@ namespace SEMod.INGAME.classes.implementations
         {
             try
             {
-                Mass = (int)(GetCargoMass() + shipComponents.AllBlocks.Sum(x => x.Mass));
-                var controlBlock = shipComponents.ControlUnits.FirstOrDefault();
-                if (controlBlock != null)
-                {
-                    var maxMass = (int)shipComponents.Thrusters.Where(x => x.WorldMatrix.Forward == controlBlock.WorldMatrix.Forward).Sum(x => x.MaxThrust) / (controlBlock.GetNaturalGravity().Length());
-                    UpdateInfoKey("Weight Information", " Mass: " + Mass + "kg  MaxMass: " + (int)maxMass + "kg");
-                }
-
-                //display operation details
-                foreach (var op in operatingOrder)
-                    UpdateInfoKey(op.CallMethod.Method.Name + "", ((int)op.GetAverageExecutionTime() + "ms" + " CallCountPerc: " + op.GetAverageCallCount() + "% CallDepthPer: " + op.GetAverageCallCount() + "%"));
-
-                UpdateInfoKey("Storage", " Mass: " + navigationSystems.RemoteControl.CalculateShipMass().PhysicalMass + " Max Mass: " + navigationSystems.MaxSupportedWeight / navigationSystems.RemoteControl.GetNaturalGravity().Length());
+                UpdateInfoKey("Storage", " Mass: " + navigationSystems.RemoteControl.CalculateShipMass().PhysicalMass + " Max Mass: " + navigationSystems.GetMaxSupportedWeight());
                 UpdateInfoKey("Power: ", "Current: " + CurPower + " Max: " + MaxPower);
 
                 if (NearestPlanet != null)
@@ -404,10 +405,12 @@ namespace SEMod.INGAME.classes.implementations
                 }
                 else
                     log.DisplayShipInfo(shipInfoKeys, " No Planet ");
+
+                //log.UpdateProductionInfo(factorySystems, Me.CubeGrid);
             }
             catch (Exception e) { log.Error("UpdateDisplays " + e.Message); }
 
-            log.DisplayLogScreens();
+            UpdateSystemScreens();
 
             UpdateAntenna();
         }

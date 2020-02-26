@@ -11,8 +11,10 @@ namespace ClassBuilder
     {
         static void Main(string[] args)
         {
-           var path = "C:\\Users\\Elton\\OneDrive\\Documents\\Space Engineers mods\\FighterCommand\\ingame-fighters\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes";
-            var configFile = "C:\\Users\\Elton\\OneDrive\\Documents\\Space Engineers mods\\FighterCommand\\ingame-fighters\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes\\implementations";
+
+           var path = "C:\\Users\\Elton\\Desktop\\Space Engineers mods\\FighterCommand\\ingame-fighters\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes";
+            var configFile = "C:\\Users\\Elton\\Desktop\\Space Engineers mods\\FighterCommand\\ingame-fighters\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes\\implementations";
+            //C:\Users\Elton\Desktop\Space Engineers mods\FighterCommand\ingame-fighters
 
 
             string[] files = Directory.GetFileSystemEntries(path, "*.cs", SearchOption.AllDirectories);

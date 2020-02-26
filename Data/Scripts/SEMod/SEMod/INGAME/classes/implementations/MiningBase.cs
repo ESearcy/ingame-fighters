@@ -13,7 +13,6 @@ namespace SEMod.INGAME.classes.implementations
         IMyProgrammableBlock Me = null;
         IMyGridTerminalSystem GridTerminalSystem = null;
         IMyGridProgramRuntimeInfo Runtime;
-        
 
         public MiningBase()
         //////public Program()
@@ -27,23 +26,27 @@ namespace SEMod.INGAME.classes.implementations
 
             communicationSystems = new CommunicationSystem(log, Me.CubeGrid, shipComponents);
             navigationSystems = new BasicNavigationSystem(log, Me.CubeGrid, shipComponents);
-            productionSystems = new ProductionSystem(log, Me.CubeGrid, shipComponents);
-            storageSystem = new StorageSystem(log, Me.CubeGrid, shipComponents);
+            factorySystems = new FactorySystem(log, Me.CubeGrid, shipComponents);
             trackingSystems = new TrackingSystem(log, Me.CubeGrid, shipComponents, true);
             weaponSystems = new WeaponSystem(log, Me.CubeGrid, shipComponents);
 
             operatingOrder.AddLast(new TaskInfo(LocateAllParts));
-            operatingOrder.AddLast(new TaskInfo(InternalSystemScan));
             operatingOrder.AddLast(new TaskInfo(NavigationCheck));
-            operatingOrder.AddLast(new TaskInfo(RecieveFleetMessages));
-            operatingOrder.AddLast(new TaskInfo(SendPendingMessages));
-            operatingOrder.AddLast(new TaskInfo(SensorScan));
-            operatingOrder.AddLast(new TaskInfo(MaintainAltitude));
+
+            operatingOrder.AddLast(new TaskInfo(InternalSystemCheck));
+            operatingOrder.AddLast(new TaskInfo(ScanLocalArea));
+
             operatingOrder.AddLast(new TaskInfo(UpdateTrackedTargets));
             operatingOrder.AddLast(new TaskInfo(UpdateDisplays));
+
+            operatingOrder.AddLast(new TaskInfo(RecieveFleetMessages));
+            operatingOrder.AddLast(new TaskInfo(SendPendingMessages));
+
+            operatingOrder.AddLast(new TaskInfo(MaintainAltitude));
+
             operatingOrder.AddLast(new TaskInfo(IssueOrders));
-            operatingOrder.AddLast(new TaskInfo(RunProductionRoutine));
-            
+
+            //operatingOrder.AddLast(new TaskInfo(RunProductionRoutine));
 
             maxCameraRange = 5000;
             maxCameraAngle = 80;
@@ -52,14 +55,14 @@ namespace SEMod.INGAME.classes.implementations
             InitialBlockCount = shipComponents.AllBlocks.Count();
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
         }
+        protected FactorySystem factorySystems;
         protected BasicNavigationSystem navigationSystems;
         List<DroneContext> drones = new List<DroneContext>();
-        DateTime startTime = DateTime.Now;
 
 
         public void RunProductionRoutine()
         {
-            productionSystems.Update();
+            factorySystems.Update();
         }
 
         protected void Main(String argument, UpdateType updateType)
@@ -98,10 +101,11 @@ namespace SEMod.INGAME.classes.implementations
                 if (ParsedMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
                 {
                     pm.NumBounces++;
-                    //LOG.Debug("Bounced Message");
+                    
                     communicationSystems.SendMessage(pm.ToString());
                 }
 
+               // log.Debug("Recieved Message: " +messages);
 
                 switch (pm.MessageType)
                 {
@@ -113,10 +117,9 @@ namespace SEMod.INGAME.classes.implementations
                         break;
                     case MessageCode.PingEntity:
                         if (pm.Type.Trim().ToLower().Contains("planet"))
-                            trackingSystems.UpdatePlanetData(pm, false);
+                            trackingSystems.UpdateSurfaceLocation(pm);
                         else
-                            trackingSystems.UpdateTrackedEntity(pm, false);
-
+                            trackingSystems.UpdateTrackedEntity(pm);
                         break;
                 }
             }
@@ -182,7 +185,7 @@ namespace SEMod.INGAME.classes.implementations
 
             if (argument.StartsWith("FactoryShortcut:"))
             {
-                productionSystems.ManualCommand(argument.Replace("FactoryShortcut:", ""));
+                factorySystems.ManualCommand(argument.Replace("FactoryShortcut:", ""));
                 log.Debug("Engaged Manual Command "+argument);
                 return;
             }
@@ -280,7 +283,7 @@ namespace SEMod.INGAME.classes.implementations
                 }
             }
             else if (drone.Type == DroneType.Miner && MiningDroneLogic(droneInfo, drone, order)) ;
-            else if (drone.Type == DroneType.Combat && CombatDroneLogic(droneInfo, drone, order)) ;
+            else if (drone.Type == DroneType.Combat && ScanDroneLogic(droneInfo, drone, order)) ;
             else if (drone.Type == DroneType.Scan && ScanDroneLogic(droneInfo, drone, order)) ;
             else if (order != null)
             {
@@ -450,7 +453,7 @@ namespace SEMod.INGAME.classes.implementations
             //if (dockOrders.Count > 3)
               //  return false;
 
-            log.Debug("Attampting Dock Order. miner? "+ (drone.Info.NumDrills > 0));
+            //log.Debug("Attampting Dock Order. miner? "+ (drone.Info.NumDrills > 0));
             var unused = (drone.Info.NumDrills > 0) ?
                     shipComponents.Connectors.Where(x => x.Status != MyShipConnectorStatus.Connectable && x.Status != MyShipConnectorStatus.Connected && x.CustomName.Contains("#miner#") && !x.CustomName.Contains("#trash#")) :
                     shipComponents.Connectors.Where(x => x.Status != MyShipConnectorStatus.Connectable && x.Status != MyShipConnectorStatus.Connected && !x.CustomName.Contains("#miner#") && !x.CustomName.Contains("#trash#"));
@@ -577,7 +580,7 @@ namespace SEMod.INGAME.classes.implementations
                 {
                     if (navigationSystems.GetSpeed() > 10)
                         navigationSystems.SlowDown();
-                    if (drones.Any(x => x.Order !=null && ((DateTime.Now-x.Order.IssuedAt).TotalSeconds < 20 || !x.Info.Docked) && (x.Info.lastKnownPosition - Me.GetPosition()).Length() < 60))
+                    else if (drones.Any(x => x.Order !=null && ((DateTime.Now-x.Order.IssuedAt).TotalSeconds < 20 || !x.Info.Docked) && (x.Info.lastKnownPosition - Me.GetPosition()).Length() < 60))
                         navigationSystems.SlowDown();
                     else if (Math.Abs(hoverHeight - trackingSystems.GetAltitude()) > 5)
                         navigationSystems.MaintainAltitude(trackingSystems.GetAltitude(), hoverHeight, Math.Abs(trackingSystems.GetAltitude() - hoverHeight) / 2);
@@ -602,19 +605,6 @@ namespace SEMod.INGAME.classes.implementations
         {
             try
             {
-
-                Mass = (int)(GetCargoMass() + shipComponents.AllBlocks.Sum(x => x.Mass));
-                var controlBlock = shipComponents.ControlUnits.FirstOrDefault();
-                if (controlBlock != null)
-                {
-                    var maxMass = (int)shipComponents.Thrusters.Where(x => x.WorldMatrix.Forward == controlBlock.WorldMatrix.Forward).Sum(x => x.MaxThrust) / (controlBlock.GetNaturalGravity().Length());
-                    UpdateInfoKey("Weight Information", " Mass: " + Mass + "kg  MaxMass: " + (int)maxMass + "kg");
-                }
-
-                //display operation details
-                foreach (var op in operatingOrder)
-                    UpdateInfoKey(op.CallMethod.Method.Name + "", ((int)op.GetAverageExecutionTime() + "ms" + " true-runtime: " + op.GetTrueAverageExecutionTime() + " CallCount: " + op.GetAverageCallCount() + " CallDepth: " + op.GetAverageCallCount() + ""));
-
                 UpdateInfoKey("Storage", " Mass: " + navigationSystems.RemoteControl.CalculateShipMass().PhysicalMass + " Max Mass: " + navigationSystems.GetMaxSupportedWeight());
                 UpdateInfoKey("Power: ", "Current: " + CurPower + " Max: " + MaxPower);
 
@@ -626,11 +616,11 @@ namespace SEMod.INGAME.classes.implementations
                 else
                     log.DisplayShipInfo(shipInfoKeys, " No Planet ");
 
-                log.UpdateProductionInfo(productionSystems, Me.CubeGrid);
+                //log.UpdateProductionInfo(factorySystems, Me.CubeGrid);
             }
             catch (Exception e) { log.Error("UpdateDisplays " + e.Message); }
 
-            log.DisplayLogScreens();
+            UpdateSystemScreens();
 
             UpdateAntenna();
         }

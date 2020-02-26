@@ -63,7 +63,7 @@ namespace SEMod.INGAME.classes
         public void DisplayTargets(List<TrackedEntity> trackedEntities)
         {
             var targetsScreens = components.TextPanels.Where(x => x.CustomName.Contains("#targets#")).ToList();
-            UpdateTrackedEntitiesScreens(targetsScreens, trackedEntities, grid);
+            //UpdateTrackedEntitiesScreens(targetsScreens, trackedEntities, grid);
         }
 
         public void UpdateDisplays(List<IMyTextPanel> _textpanels, List<DroneInfo> drones, List<Order> orders, List<TrackedEntity> trackedEntities, IMyCubeGrid grid)
@@ -79,9 +79,8 @@ namespace SEMod.INGAME.classes
 
             }
             //update debug screen
-            UpdateLCD(debug, debugScreens, "Debug Messages");
-            UpdateLCD(error, errorScreens, "Error Messages");
-            UpdateTrackedEntitiesScreens(targetsScreens, trackedEntities, grid);
+            
+            //UpdateTrackedEntitiesScreens(targetsScreens, trackedEntities, grid);
 
 
         }
@@ -125,13 +124,25 @@ namespace SEMod.INGAME.classes
 
         }
 
-        public void UpdateProductionInfo(ProductionSystem production, IMyCubeGrid grid)
+        internal void DisplayLogs(List<IMyTextPanel> textPanels, Dictionary<string, string> all_refs)
+        {
+            String str = "";
+            int index = 0;
+
+            foreach (var screen in textPanels)
+            {
+                if (all_refs.ContainsKey(screen.CustomName))
+                    screen.WriteText(screen.CustomName + "\n" + DateTime.Now + "\n" + all_refs[screen.CustomName]);
+            }
+        }
+
+        public void UpdateProductionInfo(FactorySystem factorySystem, IMyCubeGrid grid)
         {
             List<string> lines = new List<string>();
 
             
-            lines.Add(" Number of Factories: " + production.Factories.Count());
-            foreach(var factory in production.Factories){
+            lines.Add(" Number of Factories: " + factorySystem.Factories.Count());
+            foreach(var factory in factorySystem.Factories){
                 Factory fact = factory.Value;
                 lines.Add(factory.Key + " " + fact.IsOperational() + " " + fact.currentState + " "+fact.CompCounts());
                 if(fact.GetPrimaryProjector()!=null)
@@ -149,37 +160,22 @@ namespace SEMod.INGAME.classes
             UpdateLCD(lines, screens, "Production");
         }
 
-        public void UpdateRegionInfo(List<Region> regions, IMyCubeGrid grid)
+        public void UpdateRegionInfo(Dictionary<long, Region> regions, IMyCubeGrid grid)
         {
             List<string> lines = new List<string>();
 
-            foreach (var ent in regions.OrderBy(x => (x.surfaceCenter - grid.GetPosition()).Length() / x.GetScanDensity()).Take(5))
+            foreach (var ent in regions.OrderByDescending(x => (x.Value.PointsOfInterest).Count).Take(10))
             {
-                var near = ent.GetNearestPoint(grid.GetPosition());
+                var near = ent.Value.GetNearestPoint(grid.GetPosition());
                 var distance = (int)(near - grid.GetPosition()).Length();
-                lines.Add(" size: " + ent.PointsOfInterest.Count() + "   distance: " + (int)distance + "m\n" +
-                    "       --last scanned: " + (int)(DateTime.Now - ent.LastUpdated).TotalSeconds + "s " +
-                    "  scan density: " + ent.GetScanDensity() + "\n" +
-                    "       --surface scan coverage: " + ent.GetPercentReached());
+                lines.Add(" size: " + ent.Value.PointsOfInterest.Count() + "   distance: " + (int)distance + "m\n" +
+                    "       --last scanned: " + (int)(DateTime.Now - ent.Value.LastUpdated).TotalSeconds + "s " +
+                    "  scan density: " + ent.Value.GetScanDensity() + "\n" +
+                    "       --surface scan coverage: " + ent.Value.GetPercentReached());
             }
             lines.Add(" Number of Detected Regions: " + regions.Count());
             var screens = components.TextPanels.Where(x => x.CustomName.Contains("#planets#")).ToList();
             UpdateLCD(lines, screens, "Regions");
-        }
-
-        private void UpdateTrackedEntitiesScreens(List<IMyTextPanel> targetsScreens, List<TrackedEntity> trackedEntities, IMyCubeGrid grid)
-        {
-            List<string> lines = new List<string>();
-            foreach (var ent in trackedEntities.OrderBy(x => x.Relationship))
-            {
-                var near = ent.GetNearestPoint(grid.GetPosition());
-                var distance = (int)(near - grid.GetPosition()).Length();
-                var lastfour = (ent.EntityID + "");
-                lastfour = lastfour.Substring(lastfour.Length - 4);
-                lines.Add(lastfour + "  " + ent.Type + "  " + ent.name + " " + near + " " + ent.Relationship + "  " + (int)distance + "m" + "  " + (int)(DateTime.Now - ent.LastUpdated).TotalSeconds);
-            }
-
-            UpdateLCD(lines, targetsScreens, "Tracked Targets");
         }
 
         public void UpdateFleetInformationScreens(List<DroneContext> droneContexts, IMyCubeGrid grid)

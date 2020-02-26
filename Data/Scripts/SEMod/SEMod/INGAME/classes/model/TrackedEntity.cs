@@ -18,25 +18,26 @@ namespace SEMod.INGAME.classes
         public DateTime LastUpdated;
         public String DetailsString;
         public long EntityID;
-        public String name;
+        public String Name;
         public int Radius;
         Vector3D nearestPoint;
         public MyRelationsBetweenPlayerAndBlock Relationship;
         Logger log;
         public String Type;
 
-        public TrackedEntity(MyDetectedEntityInfo info, Logger log)
+        public TrackedEntity(Vector3D location, Vector3D velocity, Vector3D attack_point, long entityId, String name, int radius, MyRelationsBetweenPlayerAndBlock relationship, Vector3D nearest_point, String type, Logger log)
         {
+            AttackPoint = attack_point;
             this.log = log;
             LastUpdated = DateTime.Now;
-            Location = info.Position;
-            Velocity = info.Velocity;
-            EntityID = info.EntityId;
-            name = info.Name;
-            Radius = (int)Math.Abs((info.BoundingBox.Min - info.BoundingBox.Max).Length());
-            Relationship = info.Relationship;
-            nearestPoint = info.HitPosition.Value;
-            Type = info.Type.ToString();
+            Location = location;
+            Velocity = velocity;
+            EntityID = entityId;
+            Name = name;
+            Radius = radius;
+            Relationship = relationship;
+            nearestPoint = nearest_point;
+            Type = type;
             UpdatePoints(new PointOfInterest(nearestPoint, EntityID));
             //UpdateNearestPoints(new PointOfInterest(pm.AttackPoint, pm.TargetEntityId), Vector3D.Zero);
         }

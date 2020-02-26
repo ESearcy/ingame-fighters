@@ -7,33 +7,31 @@ SetupFleetListener();
 log=new Logger(Me.CubeGrid,shipComponents);
 communicationSystems=new CommunicationSystem(log,Me.CubeGrid,shipComponents);
 navigationSystems=new BasicNavigationSystem(log,Me.CubeGrid,shipComponents);
-productionSystems=new ProductionSystem(log,Me.CubeGrid,shipComponents);
-storageSystem=new StorageSystem(log,Me.CubeGrid,shipComponents);
+factorySystems=new FactorySystem(log,Me.CubeGrid,shipComponents);
 trackingSystems=new TrackingSystem(log,Me.CubeGrid,shipComponents,true);
 weaponSystems=new WeaponSystem(log,Me.CubeGrid,shipComponents);
 operatingOrder.AddLast(new TaskInfo(LocateAllParts));
-operatingOrder.AddLast(new TaskInfo(InternalSystemScan));
 operatingOrder.AddLast(new TaskInfo(NavigationCheck));
-operatingOrder.AddLast(new TaskInfo(RecieveFleetMessages));
-operatingOrder.AddLast(new TaskInfo(SendPendingMessages));
-operatingOrder.AddLast(new TaskInfo(SensorScan));
-operatingOrder.AddLast(new TaskInfo(MaintainAltitude));
+operatingOrder.AddLast(new TaskInfo(InternalSystemCheck));
+operatingOrder.AddLast(new TaskInfo(ScanLocalArea));
 operatingOrder.AddLast(new TaskInfo(UpdateTrackedTargets));
 operatingOrder.AddLast(new TaskInfo(UpdateDisplays));
+operatingOrder.AddLast(new TaskInfo(RecieveFleetMessages));
+operatingOrder.AddLast(new TaskInfo(SendPendingMessages));
+operatingOrder.AddLast(new TaskInfo(MaintainAltitude));
 operatingOrder.AddLast(new TaskInfo(IssueOrders));
-operatingOrder.AddLast(new TaskInfo(RunProductionRoutine));
 maxCameraRange=5000;
 maxCameraAngle=80;
 hoverHeight=400;
 InitialBlockCount=shipComponents.AllBlocks.Count();
 Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
+protected FactorySystem factorySystems;
 protected BasicNavigationSystem navigationSystems;
 List<DroneContext> drones=new List<DroneContext>();
-DateTime startTime=DateTime.Now;
 public void RunProductionRoutine()
 {
-productionSystems.Update();
+factorySystems.Update();
 }
 protected void Main(String argument,UpdateType updateType)
 {
@@ -81,9 +79,9 @@ UpdateDrone(pm);
 break;
 case MessageCode.PingEntity:
 if (pm.Type.Trim().ToLower().Contains("planet"))
-trackingSystems.UpdatePlanetData(pm,false);
+trackingSystems.UpdateSurfaceLocation(pm);
 else
-trackingSystems.UpdateTrackedEntity(pm,false);
+trackingSystems.UpdateTrackedEntity(pm);
 break;
 }
 }
@@ -137,7 +135,7 @@ if (argument==null)
 return;
 if (argument.StartsWith("FactoryShortcut:"))
 {
-productionSystems.ManualCommand(argument.Replace("FactoryShortcut:",""));
+factorySystems.ManualCommand(argument.Replace("FactoryShortcut:",""));
 log.Debug("Engaged Manual Command "+argument);
 return;
 }
@@ -219,7 +217,7 @@ IssueStandbyOrder(droneInfo);
 }
 }
 else if (drone.Type==DroneType.Miner && MiningDroneLogic(droneInfo,drone,order)) ;
-else if (drone.Type==DroneType.Combat && CombatDroneLogic(droneInfo,drone,order)) ;
+else if (drone.Type==DroneType.Combat && ScanDroneLogic(droneInfo,drone,order)) ;
 else if (drone.Type==DroneType.Scan && ScanDroneLogic(droneInfo,drone,order)) ;
 else if (order != null)
 {
@@ -323,7 +321,6 @@ log.UpdateFleetInformationScreens(drones,Me.CubeGrid);
 }
 private bool IssueDockOrder(DroneContext drone)
 {
-log.Debug("Attampting Dock Order. miner? "+ (drone.Info.NumDrills > 0));
 var unused=(drone.Info.NumDrills > 0) ?
 shipComponents.Connectors.Where(x => x.Status != MyShipConnectorStatus.Connectable && x.Status != MyShipConnectorStatus.Connected && x.CustomName.Contains("#miner#") && !x.CustomName.Contains("#trash#")) :
 shipComponents.Connectors.Where(x => x.Status != MyShipConnectorStatus.Connectable && x.Status != MyShipConnectorStatus.Connected && !x.CustomName.Contains("#miner#") && !x.CustomName.Contains("#trash#"));
@@ -417,7 +414,7 @@ if (NearestPlanet != null)
 {
 if (navigationSystems.GetSpeed() > 10)
 navigationSystems.SlowDown();
-if (drones.Any(x => x.Order !=null && ((DateTime.Now-x.Order.IssuedAt).TotalSeconds < 20 || !x.Info.Docked) && (x.Info.lastKnownPosition-Me.GetPosition()).Length() < 60))
+else if (drones.Any(x => x.Order !=null && ((DateTime.Now-x.Order.IssuedAt).TotalSeconds < 20 || !x.Info.Docked) && (x.Info.lastKnownPosition-Me.GetPosition()).Length() < 60))
 navigationSystems.SlowDown();
 else if (Math.Abs(hoverHeight-trackingSystems.GetAltitude()) > 5)
 navigationSystems.MaintainAltitude(trackingSystems.GetAltitude(),hoverHeight,Math.Abs(trackingSystems.GetAltitude()-hoverHeight) / 2);
@@ -439,15 +436,6 @@ protected void UpdateDisplays()
 {
 try
 {
-Mass=(int)(GetCargoMass()+shipComponents.AllBlocks.Sum(x => x.Mass));
-var controlBlock=shipComponents.ControlUnits.FirstOrDefault();
-if (controlBlock != null)
-{
-var maxMass=(int)shipComponents.Thrusters.Where(x => x.WorldMatrix.Forward==controlBlock.WorldMatrix.Forward).Sum(x => x.MaxThrust) / (controlBlock.GetNaturalGravity().Length());
-UpdateInfoKey("Weight Information"," Mass: "+Mass+"kgMaxMass: "+(int)maxMass+"kg");
-}
-foreach (var op in operatingOrder)
-UpdateInfoKey(op.CallMethod.Method.Name+"",((int)op.GetAverageExecutionTime()+"ms"+" true-runtime: "+op.GetTrueAverageExecutionTime()+" CallCount: "+op.GetAverageCallCount()+" CallDepth: "+op.GetAverageCallCount()+""));
 UpdateInfoKey("Storage"," Mass: "+navigationSystems.RemoteControl.CalculateShipMass().PhysicalMass+" Max Mass: "+navigationSystems.GetMaxSupportedWeight());
 UpdateInfoKey("Power: ","Current: "+CurPower+" Max: "+MaxPower);
 if (NearestPlanet != null)
@@ -457,21 +445,19 @@ log.UpdateRegionInfo(NearestPlanet.Regions,Me.CubeGrid);
 }
 else
 log.DisplayShipInfo(shipInfoKeys," No Planet ");
-log.UpdateProductionInfo(productionSystems,Me.CubeGrid);
 }
 catch (Exception e) { log.Error("UpdateDisplays "+e.Message);}
-log.DisplayLogScreens();
+UpdateSystemScreens();
 UpdateAntenna();
 }
 
 protected LinkedList<TaskInfo> operatingOrder=new LinkedList<TaskInfo>();
 protected Logger log;
 protected CommunicationSystem communicationSystems;
-protected ProductionSystem productionSystems;
 protected ShipComponents shipComponents;
-protected StorageSystem storageSystem;
 protected TrackingSystem trackingSystems;
 protected WeaponSystem weaponSystems;
+protected DateTime startTime=DateTime.Now;
 protected Dictionary<String,object> shipInfoKeys=new Dictionary<string,object>();
 protected int sensorScansPerSecond=2;
 protected int hoverHeight=900;
@@ -494,7 +480,7 @@ public void SendPendingMessages()
 {
 var messages=communicationSystems.RetrievePendingMessages();
 foreach (var message in messages)
-TransmitMessage(message);
+TransmitMessage("fleet",message);
 }
 TaskResult lastTask=null;
 TaskInfo lastTaskInfo=null;
@@ -507,33 +493,25 @@ lastTaskInfo.AddResult(lastTask);
 }
 if (lastOperationIndex==operatingOrder.Count())
 lastOperationIndex=0;
-long msStart=DateTime.Now.Ticks;
 TaskInfo info=operatingOrder.ElementAt(lastOperationIndex);
 info.CallMethod();
-long msStop=DateTime.Now.Ticks;
-long timeTaken=msStop-msStart;
-lastTask=new TaskResult(timeTaken,Runtime.CurrentInstructionCount,Runtime.CurrentCallChainDepth);
+lastTask=new TaskResult(Runtime.CurrentInstructionCount,Runtime.CurrentCallChainDepth);
 lastTaskInfo=info;
 lastOperationIndex++;
 }
-protected void InternalSystemScan()
+protected void InternalSystemCheck()
 {
 try
 {
-var cs=communicationSystems.IsOperational();
-var ps=productionSystems.IsOperational();
-var ss=storageSystem.IsOperational();
-var ts=trackingSystems.IsOperational();
-var ws=weaponSystems.IsOperational();
-UpdateInfoKey("WeaponSystems",BoolToOnOff(ws)+"");
-UpdateInfoKey("CommunicationSystems",BoolToOnOff(cs)+"");
-UpdateInfoKey("TrackingSystems",BoolToOnOff(ts)+"");
-UpdateInfoKey("ProductionSystems",BoolToOnOff(ps)+"");
-UpdateInfoKey("StorageSystem",BoolToOnOff(ss)+"");
+if(communicationSystems !=null)
+UpdateInfoKey("communicationSystems",BoolToOnOff(communicationSystems.IsOperational())+"");
+if (trackingSystems != null)
+UpdateInfoKey("trackingSystems",BoolToOnOff(trackingSystems.IsOperational())+"");
+if (weaponSystems != null)
+UpdateInfoKey("weaponSystems",BoolToOnOff(weaponSystems.IsOperational())+"");
 CalculatePower();
-storageSystem.UpdateStats();
 }
-catch (Exception e) { log.Error("InternalSystemScan "+e.Message);}
+catch (Exception e) { log.Error("InternalSystemScan "+e.StackTrace);}
 }
 protected double CurPower=0;
 protected double MaxPower=0;
@@ -547,6 +525,35 @@ CurPower += (double)battery.CurrentStoredPower;
 MaxPower += (double)battery.MaxStoredPower;
 }
 }
+Dictionary<String,String> all_refs=new Dictionary<string,string>();
+public void UpdateSystemScreens()
+{
+try
+{
+all_refs.Clear();
+if (trackingSystems != null)
+foreach (var screen in trackingSystems.GetScreenInfo())
+all_refs.Add(screen.Key,screen.Value);
+Mass=(int)(GetCargoMass()+shipComponents.AllBlocks.Sum(x => x.Mass));
+var controlBlock=shipComponents.ControlUnits.FirstOrDefault();
+if (controlBlock != null)
+{
+var maxMass=(int)shipComponents.Thrusters.Where(x => x.WorldMatrix.Forward==controlBlock.WorldMatrix.Forward).Sum(x => x.MaxThrust) / (controlBlock.GetNaturalGravity().Length());
+UpdateInfoKey("Weight Information"," Mass: "+Mass+"kgMaxMass: "+(int)maxMass+"kg");
+}
+foreach (var op in operatingOrder)
+UpdateInfoKey(op.CallMethod.Method.Name+"",(
+" true-runtime: "+op.GetTrueAverageExecutionTime() +
+" CallCount: "+op.GetAverageCallCount() +
+" CallDepth: "+op.GetAverageCallCount()+""));
+log.DisplayLogs(shipComponents.TextPanels,all_refs);
+}
+catch (Exception e)
+{
+log.Error("UpdateSystemScreens "+e.StackTrace);
+}
+log.DisplayLogScreens();
+}
 protected int InitialBlockCount;
 protected double GetHealth()
 {
@@ -556,24 +563,36 @@ protected string BoolToOnOff(bool conv)
 {
 return conv ? "Online" : "Offline";
 }
-protected void SensorScan()
+Dictionary<long,TrackedEntity> foundentities=new Dictionary<long,TrackedEntity>();
+protected void ScanLocalArea()
 {
 try
 {
-ScanWithSensors();
-ScanWithCameras();
-}
-catch (Exception e) { log.Error("SensorScan "+e.Message);}
-}
-protected void ScanWithSensors()
+foundentities.Clear();
+ScanWithSensors(foundentities);
+ScanWithCameras(foundentities);
+if(trackingSystems != null)
 {
+foreach(var t in foundentities)
+TrackTarget(t.Value);
+}
+}
+catch (Exception e) { log.Error("SensorScan "+e.StackTrace);}
+}
+public void TrackTarget(TrackedEntity ent)
+{
+trackingSystems.TrackEntity(ent,true);
+}
+int sensorindex=0;
+protected void ScanWithSensors(Dictionary<long,TrackedEntity> foundentities)
+{
+if (sensorindex==shipComponents.Sensors.Count())
+sensorindex=0;
 var miliseconds=(DateTime.Now-lastReportTime).TotalMilliseconds;
-if (miliseconds>=1000 / sensorScansPerSecond)
+if (miliseconds>=1000 / sensorScansPerSecond && sensorindex < shipComponents.Sensors.Count())
 {
 lastReportTime=DateTime.Now;
-var foundentities=new Dictionary<long,String>();
-foreach (var sensor in shipComponents.Sensors)
-{
+var sensor=shipComponents.Sensors[sensorindex];
 sensor.DetectEnemy=true;
 sensor.DetectPlayers=true;
 sensor.DetectLargeShips=true;
@@ -581,35 +600,45 @@ sensor.DetectSmallShips=true;
 sensor.DetectOwner=false;
 sensor.DetectStations=true;
 sensor.DetectAsteroids=true;
-var ent=sensor.LastDetectedEntity;//LastDetectedEntity;
+var ent=sensor.LastDetectedEntity;
 if (ent.EntityId != 0)
 {
-String EntityInformation=ParsedMessage.BuildPingEntityMessage(ent,Me.CubeGrid.EntityId,communicationSystems.GetMsgSntCount());
 if (!foundentities.Keys.Contains(ent.EntityId))
-foundentities.Add(ent.EntityId,EntityInformation);
-ParseMessage(EntityInformation,true);
+{
+var t=new TrackedEntity(
+ent.Position
+,ent.Velocity
+,ent.Position
+,ent.EntityId
+,ent.Name
+,0
+,ent.Relationship
+,ent.Position
+,ent.Type.ToString()
+,log);;
+foundentities.Add(ent.EntityId,t);
 }
 }
-foreach (var entity in foundentities)
-communicationSystems.SendMessage(entity.Value);
 }
+sensorindex++;
 }
 protected int pitch=0;
 protected int yaw=0;
 protected int range=0;
 protected int maxCameraRange=2000;
 protected int maxCameraAngle=90;
-protected void ScanWithCameras()
+int cameraIndex=0;
+protected void ScanWithCameras(Dictionary<long,TrackedEntity> foundentities)
 {
-var foundentities=new Dictionary<long,String>();
-foreach (var camera in shipComponents.Cameras)
-{
+if (cameraIndex==shipComponents.Cameras.Count())
+cameraIndex=0;
+var camera=shipComponents.Cameras[cameraIndex];
 var maxAngle=maxCameraAngle;
 var maxRange=maxCameraRange;
 if (!camera.EnableRaycast)
 camera.EnableRaycast=true;
 var timeToScan=camera.TimeUntilScan(range);
-if (timeToScan<=0)
+if (timeToScan<=0 && cameraIndex < shipComponents.Cameras.Count())
 {
 pitch -= 5;
 if (pitch<=-maxAngle)
@@ -620,7 +649,7 @@ yaw -= 5;
 if (yaw<=-maxAngle)
 {
 yaw=yaw*-1;
-range -= 500;
+range -= 200;
 }
 if (range<=1)
 {
@@ -629,19 +658,18 @@ range=maxCameraRange;
 var ent=camera.Raycast(range,pitch,yaw);
 if (ent.EntityId != 0)
 {
-String EntityInformation=ParsedMessage.BuildPingEntityMessage(ent,Me.CubeGrid.EntityId,communicationSystems.GetMsgSntCount());
-ParseMessage(EntityInformation,true);
 if (!foundentities.Keys.Contains(ent.EntityId))
-foundentities.Add(ent.EntityId,EntityInformation);
-}
-}
-}
-foreach (var entity in foundentities)
-communicationSystems.SendMessage(entity.Value);
-}
-private void TransmitMessage(String message)
 {
-IGC.SendBroadcastMessage("fleet",message,TransmissionDistance.TransmissionDistanceMax);
+var t=new TrackedEntity(ent.Position,ent.Velocity,ent.HitPosition.Value,ent.EntityId,ent.Name,(int)Math.Abs((ent.BoundingBox.Min-ent.BoundingBox.Max).Length()),ent.Relationship,ent.HitPosition.Value,ent.Type.ToString(),log);
+foundentities.Add(ent.EntityId,t);
+}
+}
+}
+cameraIndex++;
+}
+private void TransmitMessage(String destination,String message)
+{
+IGC.SendBroadcastMessage(destination,message,TransmissionDistance.TransmissionDistanceMax);
 }
 protected void ParseMessage(string argument,bool selfCalled=false)
 {
@@ -655,15 +683,6 @@ if (ParsedMessage.MaxNumBounces < pm.NumBounces && !selfCalled && pm.MessageType
 pm.NumBounces++;
 communicationSystems.SendMessage(pm.ToString());
 }
-switch (pm.MessageType)
-{
-case MessageCode.PingEntity:
-if (pm.Type.Trim().ToLower().Contains("planet") && trackingSystems.UpdatePlanetData(pm,selfCalled))
-communicationSystems.SendMessage(pm.ToString());
-else
-trackingSystems.UpdateTrackedEntity(pm,selfCalled);
-break;
-}
 }
 catch (Exception e) { log.Error(e.Message);}
 }
@@ -672,7 +691,6 @@ protected void UpdateTrackedTargets()
 {
 try
 {
-log.DisplayTargets(trackingSystems.getTargets());
 trackingSystems.Update();
 NearestPlanet=trackingSystems.GetNearestPlanet();
 }
@@ -877,229 +895,14 @@ merge.Enabled=false;
 }
 }
 }
-public class DroneContext
-{
-public DroneInfo Info;
-public DroneOrder Order;
-public DroneContext(DroneInfo info,DroneOrder o)
-{
-Order=o;
-Info=info;
-}
-}
-public class DroneOrder
-{
-public OrderType Ordertype=OrderType.Unknown;
-public long DroneId;
-public double RequestId;
-public bool Initalized=false;
-public Vector3D PrimaryLocation;
-public Vector3D DirectionalVectorOne;
-public Vector3D ThirdLocation;
-public DateTime IssuedAt;
-public DateTime LastUpdated;
-public long TargetEntityID;
-public bool Confirmed=false;
-public PointOfInterest PointOfIntrest;
-public Vector3D Destination;
-internal IMyShipConnector Connector;
-Logger log;
-public DroneOrder(Logger l, OrderType type,double requestID,long targetEntityId,long DroneID,Vector3D primaryLocation,Vector3D vectortwo,Vector3D thirdLocation)
-{
-log=l;
-TargetEntityID=targetEntityId;
-RequestId=requestID;
-IssuedAt=DateTime.Now;
-LastUpdated=IssuedAt;
-DroneId=DroneID;
-Ordertype=type;
-PrimaryLocation=primaryLocation;
-DirectionalVectorOne=vectortwo;
-ThirdLocation= thirdLocation;
-DirectionalVectorOne.Normalize();
-ThirdLocation.Normalize();
-Initalize();
-DockRouteIndex=dockroute.Count()-1;
-}
-internal void Initalize()
-{
-switch (Ordertype)
-{
-case OrderType.Scan:
-Destination=PrimaryLocation+(-DirectionalVectorOne*500);
-break;
-case OrderType.Attack:
-Destination=PrimaryLocation;
-break;
-case OrderType.Dock:
-UpdateDockingCoords();
-break;
-case OrderType.Mine:
-UpdateMiningCoords();
-break;
-}
-}
-int dockingDistance=150;
-public int DockRouteIndex=39;
-public List<Vector3D> dockroute=new List<Vector3D>();
-internal void UpdateDockingCoords()
-{
-dockroute.Clear();
-for (int i= 1;i < dockingDistance;i++)
-{
-dockroute.Add(PrimaryLocation+(DirectionalVectorOne*i));
-}
-}
-int miningDepth=20;
-public int MiningIndex=0;
-internal void UpdateMiningCoords()
-{
-dockroute.Clear();
-dockroute.Add(PrimaryLocation-(DirectionalVectorOne*10));
-dockroute.Add(PrimaryLocation-(DirectionalVectorOne*5));
-for (double i=1;i < miningDepth;i+=.2)
-{
-dockroute.Add(PrimaryLocation+(DirectionalVectorOne*i));
-}
-}
-}
-public class PlanetaryData
-{
-public Vector3D PlanetCenter;
-public List<Region> Regions=new List<Region>();
-public DateTime LastUpdated;
-private Logger log;
-public PlanetaryData(Logger log,Vector3D planetCenter,Region region,Vector3D detectorLocation)
-{
-this.log=log;
-PlanetCenter=planetCenter;
-LastUpdated=DateTime.Now;
-UpdatePlanetaryData(region,detectorLocation);
-}
-public bool UpdatePlanetaryData(Region region,Vector3D detectorLocation)
-{
-bool addedLocation=false;
-LastUpdated=DateTime.Now;
-var existingRegion=Regions.Where(x => x.EntityId==region.EntityId).FirstOrDefault();
-if (existingRegion != null)
-{
-addedLocation=existingRegion.UpdateRegion(region,detectorLocation);
-}
-else
-{
-addedLocation=true;
-Regions.Add(region);
-}
-return addedLocation;
-}
-public Vector3D GetNearestPoint(Vector3D gridLocation)
-{
-var closestRegions=Regions.OrderBy(x => (x.surfaceCenter-gridLocation).Length()).Take(5)
-.OrderBy(x => (x.GetNearestPoint(gridLocation)-gridLocation).Length());
-if (closestRegions.Any())
-return closestRegions.First().GetNearestPoint(gridLocation);
-else return new Vector3D();
-}
-}
-public class Region
-{
-public long EntityId;
-public List<PointOfInterest> PointsOfInterest=new List<PointOfInterest>();
-public List<PointOfInterest> nearestPoints=new List<PointOfInterest>();
-public DateTime LastUpdated;
-public Vector3D PlanetCenter;
-public Vector3D surfaceCenter;
-long timesScanned=0;
-long minDistBetweenPOI;
-int maxSavedPoints;
-bool iscmd;
-public double GetScanDensity()
-{
-var density=timesScanned / PointsOfInterest.Count();
-return density;
-}
-public bool UpdateRegion(Region region,Vector3D detectorLocation)
-{
-bool updatedLocation=false;
-timesScanned++;
-LastUpdated=DateTime.Now;
-var location=region.PointsOfInterest[0];
-updatedLocation=UpdatePoints(location);
-return updatedLocation;
-}
-public Region(long EntityId,Vector3D planetLocation,PointOfInterest point,Vector3D detectorLocation,bool iscommand)
-{
-iscmd=iscommand;
-minDistBetweenPOI=iscmd ? 150 : 30;
-maxSavedPoints=iscmd ? 50 : 15;
-this.EntityId=EntityId;
-LastUpdated=DateTime.Now;
-PlanetCenter=planetLocation;
-UpdatePoints(point);
-}
-public bool UpdatePoints(PointOfInterest pointOfInterest)
-{
-bool added=false;
-var isTooClose=PointsOfInterest.Any(x => Math.Abs((x.Location-pointOfInterest.Location).Length()) < minDistBetweenPOI);
-if (!isTooClose)
-{
-if (PointsOfInterest.Count < maxSavedPoints && iscmd)
-{
-added=true;
-PointsOfInterest.Add(pointOfInterest);
-}
-else if (PointsOfInterest.Count+1>=maxSavedPoints && !iscmd)
-{
-PointsOfInterest.Add(pointOfInterest);
-PointsOfInterest.RemoveAt(0);
-}
-else if (PointsOfInterest.Count+1 < maxSavedPoints && !iscmd)
-{
-PointsOfInterest.Add(pointOfInterest);
-}
-if (PointsOfInterest.Count()==1)
-surfaceCenter=pointOfInterest.Location;
-else
-{
-var mtplr=PointsOfInterest.Count();
-var loc=pointOfInterest.Location;
-var x=surfaceCenter.X+loc.X*mtplr;
-var y=surfaceCenter.Y+loc.Y*mtplr;
-var z=surfaceCenter.Z+loc.Z*mtplr;
-surfaceCenter=new Vector3D(x / mtplr,y / mtplr,z / mtplr);
-}
-var dis=Math.Abs((pointOfInterest.Location-lastLocation).Length());
-if (nearestPoints.Count==0 || (lastLocation != null && nearestPoints.Any(x => (x.Location-lastLocation).Length() < dis)))
-nearestPoints.Add(pointOfInterest);
-}
-return added;
-}
-Vector3D lastLocation;
-internal Vector3D GetNearestPoint(Vector3D vector3D)
-{
-lastLocation=vector3D;
-nearestPoints=nearestPoints.OrderBy(x => (vector3D-x.Location).Length()).ToList();
-if(nearestPoints.Count >5)
-nearestPoints.Remove(PointsOfInterest.LastOrDefault());
-return nearestPoints.FirstOrDefault().Location;
-}
-internal PointOfInterest GetNearestSurveyPoint(Vector3D vector3D)
-{
-return PointsOfInterest.Where(x => !x.HasPendingOrder && (DateTime.Now-x.Timestamp).TotalMinutes > 30).OrderBy(x => Math.Abs((vector3D-x.Location).Length())).FirstOrDefault();
-}
-internal double GetPercentReached()
-{
-return PointsOfInterest.Where(x => x.Reached).Count() / PointsOfInterest.Count()*100;
-}
-}
-public class ProductionSystem
+public class FactorySystem
 {
 Logger L;
 public Dictionary<String,Factory> Factories=new Dictionary<String,Factory>();
 ShipComponents shipComponents;
 IMyCubeGrid primaryGrid;
 const float rotationVelocity=3f;
-public ProductionSystem(Logger log,IMyCubeGrid grid,ShipComponents components)
+public FactorySystem(Logger log,IMyCubeGrid grid,ShipComponents components)
 {
 L=log;
 shipComponents=components;
@@ -1165,6 +968,243 @@ var bpName=v.Replace("Build:","").Split(':')[1];
 L.Debug("building " +factoryName+""+bpName);
 Build(factoryName,bpName);
 }
+}
+}
+public class DroneContext
+{
+public DroneInfo Info;
+public DroneOrder Order;
+public DroneContext(DroneInfo info,DroneOrder o)
+{
+Order=o;
+Info=info;
+}
+}
+public class DroneOrder
+{
+public OrderType Ordertype=OrderType.Unknown;
+public long DroneId;
+public double RequestId;
+public bool Initalized=false;
+public Vector3D PrimaryLocation;
+public Vector3D DirectionalVectorOne;
+public Vector3D ThirdLocation;
+public DateTime IssuedAt;
+public DateTime LastUpdated;
+public long TargetEntityID;
+public bool Confirmed=false;
+public PointOfInterest PointOfIntrest;
+public Vector3D Destination;
+internal IMyShipConnector Connector;
+Logger log;
+public DroneOrder(Logger l, OrderType type,double requestID,long targetEntityId,long DroneID,Vector3D primaryLocation,Vector3D vectortwo,Vector3D thirdLocation)
+{
+log=l;
+TargetEntityID=targetEntityId;
+RequestId=requestID;
+IssuedAt=DateTime.Now;
+LastUpdated=IssuedAt;
+DroneId=DroneID;
+Ordertype=type;
+PrimaryLocation=primaryLocation;
+DirectionalVectorOne=vectortwo;
+ThirdLocation= thirdLocation;
+DirectionalVectorOne.Normalize();
+ThirdLocation.Normalize();
+Initalize();
+DockRouteIndex=dockroute.Count()-1;
+}
+internal void Initalize()
+{
+switch (Ordertype)
+{
+case OrderType.Scan:
+Destination=PrimaryLocation+(-DirectionalVectorOne*500);
+break;
+case OrderType.Attack:
+Destination=PrimaryLocation;
+break;
+case OrderType.Dock:
+UpdateDockingCoords();
+break;
+case OrderType.Mine:
+UpdateMiningCoords();
+break;
+}
+}
+int dockingDistance=60;
+public int DockRouteIndex=39;
+public List<Vector3D> dockroute=new List<Vector3D>();
+internal void UpdateDockingCoords()
+{
+dockroute.Clear();
+for (int i= 1;i < dockingDistance;i++)
+{
+dockroute.Add(PrimaryLocation+(DirectionalVectorOne*i));
+}
+}
+int miningDepth=20;
+public int MiningIndex=0;
+internal void UpdateMiningCoords()
+{
+dockroute.Clear();
+dockroute.Add(PrimaryLocation-(DirectionalVectorOne*10));
+dockroute.Add(PrimaryLocation-(DirectionalVectorOne*5));
+for (double i=1;i < miningDepth;i+=.2)
+{
+dockroute.Add(PrimaryLocation+(DirectionalVectorOne*i));
+}
+}
+}
+public class PlanetaryData
+{
+public Vector3D PlanetCenter;
+public Dictionary<long,Region> Regions=new Dictionary<long,Region>();
+public DateTime LastUpdated;
+private Logger log;
+public PlanetaryData(Logger log,Vector3D planetCenter,Region region,Vector3D detectorLocation)
+{
+this.log=log;
+PlanetCenter=planetCenter;
+LastUpdated=DateTime.Now;
+UpdatePlanetaryData(region,detectorLocation);
+}
+public bool UpdatePlanetaryData(Region region,Vector3D detectorLocation)
+{
+bool addedLocation=false;
+LastUpdated=DateTime.Now;
+var existingRegion=Regions.Where(x => x.Key==region.EntityId).Select(x=> x.Value).FirstOrDefault();
+if (existingRegion!=null)
+{
+addedLocation=existingRegion.UpdateRegion(region,detectorLocation);
+}
+else
+{
+log.Debug("Logging New Region");
+addedLocation=true;
+Regions.Add(region.EntityId,region);
+}
+return addedLocation;
+}
+public Vector3D GetNearestPoint(Vector3D gridLocation)
+{
+var closestRegions=Regions.OrderBy(x => (x.Value.surfaceCenter-gridLocation).Length()).Take(5)
+.OrderBy(x => (x.Value.GetNearestPoint(gridLocation)-gridLocation).Length());
+if (closestRegions.Any())
+return closestRegions.First().Value.GetNearestPoint(gridLocation);
+else return new Vector3D();
+}
+}
+public class Region
+{
+public long EntityId;
+public List<PointOfInterest> PointsOfInterest=new List<PointOfInterest>();
+public List<PointOfInterest> nearestPoints=new List<PointOfInterest>();
+public DateTime LastUpdated;
+public Vector3D PlanetCenter;
+public Vector3D surfaceCenter;
+long timesScanned=0;
+long minDistBetweenPOI;
+int maxSavedPoints;
+bool iscmd;
+Logger log;
+public double GetScanDensity()
+{
+var density=timesScanned / PointsOfInterest.Count();
+return density;
+}
+public bool UpdateRegion(Region region,Vector3D detectorLocation)
+{
+bool updatedLocation=false;
+timesScanned++;
+LastUpdated=DateTime.Now;
+var location=region.PointsOfInterest[0];
+updatedLocation=UpdatePoints(location);
+return updatedLocation;
+}
+public Region(long EntityId,Vector3D planetLocation,PointOfInterest point,bool iscommand,Vector3D myship_loc,Logger log)
+{
+this.log=log;
+iscmd=iscommand;
+minDistBetweenPOI=iscmd ? 150 : 30;
+maxSavedPoints=iscmd ? 50 : 15;
+this.EntityId=EntityId;
+LastUpdated=DateTime.Now;
+lastLocation=myship_loc;
+PlanetCenter=planetLocation;
+UpdatePoints(point);
+}
+public bool UpdatePoints(PointOfInterest newpoint)
+{
+bool added=false;
+var tooclosetootherpoints=PointsOfInterest.Any(eachpoint => Math.Abs((eachpoint.Location-newpoint.Location).Length()) < minDistBetweenPOI);
+if (!tooclosetootherpoints)
+{
+if (PointsOfInterest.Count < maxSavedPoints)
+{
+added=true;
+PointsOfInterest.Add(newpoint);
+}
+else if (PointsOfInterest.Count+1>=maxSavedPoints)
+{
+PointsOfInterest.Add(newpoint);
+PointsOfInterest.RemoveAt(0);
+added=true;
+}
+else
+log.Debug("Failed to save location ");
+if (added)
+{
+if (PointsOfInterest.Count()==1)
+surfaceCenter=newpoint.Location;
+else
+{
+var mtplr=PointsOfInterest.Count();
+var loc=newpoint.Location;
+var x=surfaceCenter.X+loc.X*mtplr;
+var y=surfaceCenter.Y+loc.Y*mtplr;
+var z=surfaceCenter.Z+loc.Z*mtplr;
+surfaceCenter=new Vector3D(x / mtplr,y / mtplr,z / mtplr);
+}
+UpdateNearestPoints(newpoint);
+}
+}
+return added;
+}
+List<PointOfInterest> furtherPoints= new List<PointOfInterest>();
+private void UpdateNearestPoints(PointOfInterest newpoint) {
+var dis=Math.Abs((newpoint.Location-lastLocation).Length());
+if (nearestPoints.Count==0)
+nearestPoints.Add(newpoint);
+else if (nearestPoints.Count < maxSavedPoints / 2)
+{
+nearestPoints.Add(newpoint);
+}
+else if (nearestPoints.Count>=maxSavedPoints / 2)
+{
+furtherPoints=nearestPoints.Where(x => (x.Location-lastLocation).Length() > dis).ToList();
+if (furtherPoints.Any())
+{
+nearestPoints.Add(newpoint);
+nearestPoints.Remove(furtherPoints.First());
+}
+furtherPoints.Clear();
+}
+}
+Vector3D lastLocation;
+internal Vector3D GetNearestPoint(Vector3D shipLoc)
+{
+lastLocation=shipLoc;
+nearestPoints=nearestPoints.OrderBy(x => (shipLoc-x.Location).Length()).ToList();
+return nearestPoints.FirstOrDefault().Location;
+}
+internal PointOfInterest GetNearestSurveyPoint(Vector3D vector3D)
+{
+return PointsOfInterest.Where(x => !x.HasPendingOrder && (DateTime.Now-x.Timestamp).TotalMinutes > 30).OrderBy(x => Math.Abs((vector3D-x.Location).Length())).FirstOrDefault();
+}
+internal double GetPercentReached()
+{
+return PointsOfInterest.Where(x => x.Reached).Count() / PointsOfInterest.Count()*100;
 }
 }
 public class BasicNavigationSystem
@@ -1776,73 +1816,108 @@ private Logger log;
 private IMyCubeGrid cubeGrid;
 private ShipComponents shipComponets;
 bool iscmd;
+Region currentRegion=null;
 List<TrackedEntity> trackedEntities=new List<TrackedEntity>();
 List<PlanetaryData> KnownPlanets=new List<PlanetaryData>();
+string tracked_targets_logs="";
+Dictionary<string,string> screen_texts;
+PlanetaryData nearestPlanet;
+Vector3D altitude=Vector3D.Zero;
 public TrackingSystem(Logger log,IMyCubeGrid cubeGrid,ShipComponents shipComponets,bool iscommand)
 {
 iscmd=iscommand;
 this.log=log;
 this.cubeGrid=cubeGrid;
 this.shipComponets=shipComponets;
+screen_texts=new Dictionary<string,string>();
 }
 internal bool IsOperational()
 {
 return (shipComponets.Sensors.Count()+shipComponets.Cameras.Count()) > 0;//trackedEntities.Count()>0 || KnownPlanets.Count()>0;
 }
-public void UpdateTrackedEntity(ParsedMessage pm,bool selfcalled)
+public void TrackEntity(TrackedEntity pm,bool selfcalled)
 {
-TrackedEntity te=trackedEntities.Where(x => x.EntityID==pm.TargetEntityId).FirstOrDefault();
-if (te==null)
-{
-te=new TrackedEntity(pm,log);
-if(!te.name.ToLower().Contains("planet"))
-trackedEntities.Add(te);
+if (!pm.Name.ToLower().Contains("planet"))
+UpdateTrackedEntity(pm);
+if (pm.Name.ToLower().Contains("planet"))
+UpdateSurfaceLocation(pm);
 }
-te.Location=pm.Location;
-te.Velocity=pm.Velocity;
-te.LastUpdated=DateTime.Now;
-te.Radius=pm.TargetRadius;
-te.DetailsString=pm.ToString();
-te.Relationship=pm.Relationship;
+public void UpdateTrackedEntity(ParsedMessage pm)
+{
+TrackedEntity target=new TrackedEntity(pm.Location,pm.Velocity,pm.AttackPoint,pm.EntityId,pm.Name,(int)pm.ShipSize,pm.Relationship,pm.AttackPoint,pm.Type,log);
+UpdateTrackedEntity(target);
+}
+public void UpdateTrackedEntity(TrackedEntity pm)
+{
+var id=pm.EntityID;
+TrackedEntity existing=trackedEntities.Where(x => x.EntityID==id).FirstOrDefault();
+if (existing==null)
+{
+existing=pm;
+trackedEntities.Add(pm);
+}
+existing.Location=pm.Location;
+existing.Velocity=pm.Velocity;
+existing.LastUpdated=DateTime.Now;
+existing.Radius=pm.Radius;
+existing.Relationship=pm.Relationship;
 if (pm.AttackPoint != Vector3D.Zero)
 {
-te.UpdatePoints(new PointOfInterest(pm.AttackPoint,0));
+existing.UpdatePoints(new PointOfInterest(pm.AttackPoint,0));
 }
 }
-List<String> idsFound=new List<string>();
-public bool UpdatePlanetData(ParsedMessage pm,bool selfcalled)
+public void UpdateSurfaceLocation(TrackedEntity pm)
 {
-bool locationAdded=false;
-var lastfour=(pm.EntityId+"");
-lastfour=lastfour.Substring(lastfour.Length-4);
-if (!idsFound.Contains(lastfour+""))
+var point=new PointOfInterest(pm.AttackPoint,pm.EntityID);
+PlanetaryData planet=KnownPlanets.FirstOrDefault(x => x.PlanetCenter==pm.Location);
+Region region=null;
+region=new Region(pm.EntityID,pm.Location,point,iscmd,cubeGrid.GetPosition(),log);
+if(planet !=null)
+planet.UpdatePlanetaryData(region,cubeGrid.GetPosition());
+if (planet==null) {
+planet=CreateNewPlanet(pm.EntityID,pm.Location,region,point,cubeGrid.GetPosition());
+if (currentRegion.EntityId==pm.EntityID)
 {
-idsFound.Add(lastfour+"");
+currentRegion.UpdatePoints(point);
 }
-var existingPlanet=KnownPlanets.Where(x => x.PlanetCenter==pm.Location).FirstOrDefault();
-if (existingPlanet != null)
+}
+if (KnownPlanets.Count > 1)
+nearestPlanet=KnownPlanets.OrderBy(x => (x.PlanetCenter-pm.Location).Length()).FirstOrDefault();
+}
+public void UpdateSurfaceLocation(ParsedMessage pm)
 {
-locationAdded=existingPlanet.UpdatePlanetaryData(new Region(pm.TargetEntityId,pm.Location,new PointOfInterest(pm.AttackPoint,pm.TargetEntityId),cubeGrid.GetPosition(),iscmd),cubeGrid.GetPosition());
+TrackedEntity target=new TrackedEntity(pm.Location,pm.Velocity,pm.AttackPoint,pm.EntityId,pm.Name,(int)pm.ShipSize,pm.Relationship,pm.AttackPoint,pm.Type,log);
+UpdateSurfaceLocation(target);
 }
-else
+private PlanetaryData CreateNewPlanet(long id,Vector3D loc,Region newregion,PointOfInterest point,Vector3D cubegridLoc)
 {
-KnownPlanets.Add(new PlanetaryData(log,pm.Location,new Region(pm.TargetEntityId,pm.Location,new PointOfInterest(pm.AttackPoint,pm.TargetEntityId),cubeGrid.GetPosition(),iscmd),cubeGrid.GetPosition()));
-locationAdded=true;
+PlanetaryData planet=null;
+planet=new PlanetaryData(log,loc,newregion,cubegridLoc);
+currentRegion=newregion;
+nearestPlanet=planet;
+KnownPlanets.Add(planet);
+return planet;
 }
-return locationAdded;
-}
-PlanetaryData nearestPlanet;
-Vector3D altitude=Vector3D.Zero;
 public PlanetaryData GetNearestPlanet()
 {
-var np=KnownPlanets.OrderBy(y => (y.PlanetCenter-cubeGrid.GetPosition()).Length());
-return np.FirstOrDefault();
+return nearestPlanet;
 }
 public void Update()
 {
-nearestPlanet=GetNearestPlanet();
 if (nearestPlanet != null)
 altitude=(nearestPlanet.GetNearestPoint(cubeGrid.GetPosition())-cubeGrid.GetPosition());
+long msStop=DateTime.Now.Ticks;
+long timeTaken=msStop-last_slow_update;
+if (timeTaken>=3000)
+{
+SlowUpdate();
+last_slow_update=msStop;
+}
+}
+long last_slow_update=DateTime.Now.Ticks;
+public void SlowUpdate()
+{
+UpdateTrackedEntitiesScreens();
 }
 internal double GetAltitude()
 {
@@ -1860,6 +1935,25 @@ internal TrackedEntity GetEntity(long targetEntityID)
 {
 return trackedEntities.Where(x => x.EntityID==targetEntityID).FirstOrDefault();
 }
+internal Dictionary<string,string> GetScreenInfo()
+{
+screen_texts.Clear();
+screen_texts.Add("tracked_grids",tracked_targets_logs);
+return screen_texts;
+}
+private void UpdateTrackedEntitiesScreens()
+{
+tracked_targets_logs="ID,Type,Name,Relationship,Distance,Last Updated (s)\n\n";
+foreach (var ent in trackedEntities.OrderBy(x => x.Relationship))
+{
+var near=ent.GetNearestPoint(cubeGrid.GetPosition());
+var distance=(int)(near-cubeGrid.GetPosition()).Length();
+var lastfour=(ent.EntityID+"");
+lastfour=lastfour.Substring(lastfour.Length-4);
+var record=lastfour+","+ent.Type+","+ent.Name+","+ent.Relationship+","+(int)distance+"m,"+(int)(DateTime.Now-ent.LastUpdated).TotalSeconds;
+tracked_targets_logs=tracked_targets_logs+record+"\n";
+}
+}
 public List<TrackedEntity> getCombatTargets(Vector3D point)
 {
 var targetsOfConcern=trackedEntities.Where(x => (x.GetNearestPoint(point)-point).Length() < 3000 && x.Radius > 50 && x.Relationship != MyRelationsBetweenPlayerAndBlock.Owner && (DateTime.Now-x.LastUpdated).TotalMinutes < 5);
@@ -1868,12 +1962,12 @@ return targetsOfConcern.ToList();
 internal PointOfInterest GetNextMiningSamplePoint(Vector3D point)
 {
 var nearestUncheckedRegions=GetNearestPlanet().Regions
-.OrderBy(x => (x.surfaceCenter-point).Length())
-.Where(x => x.PointsOfInterest.Count(y => y.Mined) < 5);
+.OrderBy(x => (x.Value.surfaceCenter-point).Length())
+.Where(x => x.Value.PointsOfInterest.Count(y => y.Mined) < 5);
 if (nearestUncheckedRegions.Any())
 {
 var nearestUncheckedRegion=nearestUncheckedRegions.FirstOrDefault();
-var surveyPoints=nearestUncheckedRegion.PointsOfInterest.Where(x => !x.Mined && !x.HasPendingOrder).OrderBy(x => (x.Location-point).Length());
+var surveyPoints=nearestUncheckedRegion.Value.PointsOfInterest.Where(x => !x.Mined && !x.HasPendingOrder).OrderBy(x => (x.Location-point).Length());
 return surveyPoints.Any() ? surveyPoints.First() : null;
 }
 return null;
@@ -1881,30 +1975,26 @@ return null;
 internal PointOfInterest GetNearestScanPoint(Vector3D point,int maxDistance)
 {
 var needToBeScanned=
-GetNearestPlanet().Regions.OrderBy(x => (x.surfaceCenter-point).Length()).Take(10)
-.Where(x => x.PointsOfInterest.Any(y => (DateTime.Now-y.Timestamp).TotalMinutes > 20));
-log.Debug("Checking for nuls "+point+""+needToBeScanned);
+GetNearestPlanet().Regions.OrderBy(x => (x.Value.surfaceCenter-point).Length()).Take(10)
+.Where(x => x.Value.PointsOfInterest.Any(y => (DateTime.Now-y.Timestamp).TotalMinutes > 20));
 PointOfInterest retrn=null;
 if (needToBeScanned.Any())
 {
 var nearestUncheckedRegion=needToBeScanned.First();
-var surveyPoints=nearestUncheckedRegion.PointsOfInterest.Where(x => !x.HasPendingOrder && (x.Location-point).Length()<maxDistance);
+var surveyPoints=nearestUncheckedRegion.Value.PointsOfInterest.Where(x => !x.HasPendingOrder && (x.Location-point).Length()<maxDistance);
 var weightedByImportance=surveyPoints.OrderBy(x => (x.Location-point).Length());
 retrn=surveyPoints.Any() ? surveyPoints.First() : null;
-log.Debug((nearestUncheckedRegion != null)+" region found "+needToBeScanned.Count()+""+ (retrn!=null));
 retrn.HasPendingOrder=true;
 }
 return retrn;
 }
 internal void UpdateScanPoint(PointOfInterest pointOfIntrest)
 {
-var regions=GetNearestPlanet().Regions.Where(x => x.EntityId==pointOfIntrest.regionEntityID);
-var region=regions.FirstOrDefault();
-if (region != null)
+if (currentRegion != null)
 {
-var pointOfIntrestToUpdate=region.PointsOfInterest.Where(x => x.Location==pointOfIntrest.Location).FirstOrDefault();
-region.PointsOfInterest.Remove(pointOfIntrestToUpdate);
-region.PointsOfInterest.Add(pointOfIntrest);
+var pointOfIntrestToUpdate=currentRegion.PointsOfInterest.Where(x => x.Location==pointOfIntrest.Location).FirstOrDefault();
+currentRegion.PointsOfInterest.Remove(pointOfIntrestToUpdate);
+currentRegion.PointsOfInterest.Add(pointOfIntrest);
 }
 }
 }
@@ -1944,52 +2034,6 @@ foreach (var weapon in shipComponets.RocketLaunchers)
 {
 (weapon).GetActionWithName("Shoot_Off").Apply(weapon);
 }
-}
-}
-public class StorageSystem
-{
-private Logger log;
-private IMyCubeGrid cubeGrid;
-private ShipComponents shipComponets;
-public double MaxCargoSpace=0;
-public double CurrentCargoSpace=0;
-public double CargoWeight=0;
-public Dictionary<String,long> InventoryItems=new Dictionary<String,long>();
-public StorageSystem(Logger log,IMyCubeGrid cubeGrid,ShipComponents shipComponets)
-{
-this.log=log;
-this.cubeGrid=cubeGrid;
-this.shipComponets=shipComponets;
-}
-internal bool IsOperational()
-{
-return true;
-}
-internal double GetPercentFull()
-{
-return CurrentCargoSpace / MaxCargoSpace;
-}
-internal double GetInvMultiplier(IMyTerminalBlock theContainer)
-{
-return 0;//;(double)inv.MaxVolume / capacity;
-}
-double invMultiplier=1;
-public void UpdateStats()
-{
-var invBlocks=shipComponets.AllBlocks.Where(x => x.HasInventory && x.CubeGrid==cubeGrid);
-MaxCargoSpace=0;
-CurrentCargoSpace=0;
-CargoWeight=0;
-invMultiplier=1d;
-if (shipComponets.Connectors.Any())
-invMultiplier=GetInvMultiplier(shipComponets.Connectors.First());
-else
-invMultiplier=GetInvMultiplier(invBlocks.First());
-InventoryItems.Clear();
-}
-internal double GetWeight()
-{
-return CargoWeight;// / invMultiplier;
 }
 }
 public class CommunicationSystem
@@ -2162,7 +2206,6 @@ UpdateLCD(error,errorScreens,"Error Messages");
 public void DisplayTargets(List<TrackedEntity> trackedEntities)
 {
 var targetsScreens=components.TextPanels.Where(x => x.CustomName.Contains("#targets#")).ToList();
-UpdateTrackedEntitiesScreens(targetsScreens,trackedEntities,grid);
 }
 public void UpdateDisplays(List<IMyTextPanel> _textpanels,List<DroneInfo> drones,List<Order> orders,List<TrackedEntity> trackedEntities,IMyCubeGrid grid)
 {
@@ -2174,9 +2217,6 @@ if (orders != null)
 {
 var fleetScreens=textPanels.Where(x => x.CustomName.Contains("#fleet#")).ToList();
 }
-UpdateLCD(debug,debugScreens,"Debug Messages");
-UpdateLCD(error,errorScreens,"Error Messages");
-UpdateTrackedEntitiesScreens(targetsScreens,trackedEntities,grid);
 }
 private int lastInfoIndex=0;
 private int maxInfoLength=10;
@@ -2202,11 +2242,21 @@ lines.Add(" "+obj.Key+": "+obj.Value);
 var lcds=components.TextPanels.Where(x => x.CustomName.Contains("#info#")).ToList();
 UpdateLCD(lines,lcds," "+title+" "+grid.CustomName);
 }
-public void UpdateProductionInfo(ProductionSystem production,IMyCubeGrid grid)
+internal void DisplayLogs(List<IMyTextPanel> textPanels,Dictionary<string,string> all_refs)
+{
+String str="";
+int index=0;
+foreach (var screen in textPanels)
+{
+if (all_refs.ContainsKey(screen.CustomName))
+screen.WriteText(screen.CustomName+"\n"+DateTime.Now+"\n"+all_refs[screen.CustomName]);
+}
+}
+public void UpdateProductionInfo(FactorySystem factorySystem,IMyCubeGrid grid)
 {
 List<string> lines=new List<string>();
-lines.Add(" Number of Factories: "+production.Factories.Count());
-foreach(var factory in production.Factories){
+lines.Add(" Number of Factories: "+factorySystem.Factories.Count());
+foreach(var factory in factorySystem.Factories){
 Factory fact=factory.Value;
 lines.Add(factory.Key+" "+fact.IsOperational()+" "+fact.currentState+" "+fact.CompCounts());
 if(fact.GetPrimaryProjector()!=null)
@@ -2220,34 +2270,21 @@ lines.Add(" --missing--"+ fact.GetPrimaryProjector().RemainingArmorBlocks+" Armo
 var screens=components.TextPanels.Where(x => x.CustomName.Contains("#production#")).ToList();
 UpdateLCD(lines,screens,"Production");
 }
-public void UpdateRegionInfo(List<Region> regions,IMyCubeGrid grid)
+public void UpdateRegionInfo(Dictionary<long,Region> regions,IMyCubeGrid grid)
 {
 List<string> lines=new List<string>();
-foreach (var ent in regions.OrderBy(x => (x.surfaceCenter-grid.GetPosition()).Length() / x.GetScanDensity()).Take(5))
+foreach (var ent in regions.OrderByDescending(x => (x.Value.PointsOfInterest).Count).Take(10))
 {
-var near=ent.GetNearestPoint(grid.GetPosition());
+var near=ent.Value.GetNearestPoint(grid.GetPosition());
 var distance=(int)(near-grid.GetPosition()).Length();
-lines.Add(" size: "+ent.PointsOfInterest.Count()+" distance: "+(int)distance+"m\n" +
-" --last scanned: "+(int)(DateTime.Now-ent.LastUpdated).TotalSeconds+"s " +
-"scan density: "+ent.GetScanDensity()+"\n" +
-" --surface scan coverage: "+ent.GetPercentReached());
+lines.Add(" size: "+ent.Value.PointsOfInterest.Count()+" distance: "+(int)distance+"m\n" +
+" --last scanned: "+(int)(DateTime.Now-ent.Value.LastUpdated).TotalSeconds+"s " +
+"scan density: "+ent.Value.GetScanDensity()+"\n" +
+" --surface scan coverage: "+ent.Value.GetPercentReached());
 }
 lines.Add(" Number of Detected Regions: "+regions.Count());
 var screens=components.TextPanels.Where(x => x.CustomName.Contains("#planets#")).ToList();
 UpdateLCD(lines,screens,"Regions");
-}
-private void UpdateTrackedEntitiesScreens(List<IMyTextPanel> targetsScreens,List<TrackedEntity> trackedEntities,IMyCubeGrid grid)
-{
-List<string> lines=new List<string>();
-foreach (var ent in trackedEntities.OrderBy(x => x.Relationship))
-{
-var near=ent.GetNearestPoint(grid.GetPosition());
-var distance=(int)(near-grid.GetPosition()).Length();
-var lastfour=(ent.EntityID+"");
-lastfour=lastfour.Substring(lastfour.Length-4);
-lines.Add(lastfour+""+ent.Type+""+ent.name+" "+near+" "+ent.Relationship+""+(int)distance+"m"+""+(int)(DateTime.Now-ent.LastUpdated).TotalSeconds);
-}
-UpdateLCD(lines,targetsScreens,"Tracked Targets");
 }
 public void UpdateFleetInformationScreens(List<DroneContext> droneContexts,IMyCubeGrid grid)
 {
@@ -2332,26 +2369,26 @@ public List<PointOfInterest> PointsOfInterest=new List<PointOfInterest>();
 public DateTime LastUpdated;
 public String DetailsString;
 public long EntityID;
-public String name;
+public String Name;
 public int Radius;
 Vector3D nearestPoint;
 public MyRelationsBetweenPlayerAndBlock Relationship;
 Logger log;
 public String Type;
-public TrackedEntity(ParsedMessage pm,Logger log)
+public TrackedEntity(Vector3D location,Vector3D velocity,Vector3D attack_point,long entityId,String name,int radius,MyRelationsBetweenPlayerAndBlock relationship,Vector3D nearest_point,String type,Logger log)
 {
+AttackPoint=attack_point;
 this.log=log;
 LastUpdated=DateTime.Now;
-Location=pm.Location;
-Velocity=pm.Velocity;
-EntityID=pm.TargetEntityId;
-name=pm.Name;
-Radius=pm.TargetRadius;
-DetailsString=pm.ToString();
-Relationship=pm.Relationship;
-nearestPoint=pm.AttackPoint;
-Type=pm.Type;
-UpdatePoints(new PointOfInterest(pm.AttackPoint,pm.TargetEntityId));
+Location=location;
+Velocity=velocity;
+EntityID=entityId;
+Name=name;
+Radius=radius;
+Relationship=relationship;
+nearestPoint=nearest_point;
+Type=type;
+UpdatePoints(new PointOfInterest(nearestPoint,EntityID));
 }
 public void UpdatePoints(PointOfInterest pointOfInterest)
 {
@@ -3060,10 +3097,6 @@ PreviousResults.Add(tr);
 while (PreviousResults.Count() > maxResultsKept)
 PreviousResults.RemoveAt(0);
 }
-public double GetAverageExecutionTime()
-{
-return PreviousResults.Average(a => a.runtimeMs);
-}
 public double GetAverageCallCount()
 {
 return PreviousResults.Max(a => a.percentCapCall);
@@ -3079,14 +3112,12 @@ return PreviousResults.Max(a => a.trueRuntme);
 }
 public class TaskResult
 {
-public long runtimeMs;
 public double trueRuntme;
 public double percentCapDepth;
 public double percentCapCall;
-public TaskResult(long rm,double cc,double cd)
+public TaskResult(double cc,double cd)
 {
 percentCapDepth=cd;
 percentCapCall=cc;
-runtimeMs=rm;
 }
 }

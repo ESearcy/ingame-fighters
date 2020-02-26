@@ -64,7 +64,7 @@ namespace SEMod.INGAME.classes.model
         }
 
         
-        int dockingDistance = 150;
+        int dockingDistance = 60;
         public int DockRouteIndex=39;
         public List<Vector3D> dockroute = new List<Vector3D>();
         internal void UpdateDockingCoords()
