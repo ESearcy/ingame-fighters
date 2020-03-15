@@ -15,7 +15,7 @@ namespace SEMod.INGAME.classes
     //////
     public class CommunicationSystem
     {
-        List<String> PendingMessages = new List<String>();
+        Dictionary<String,List<String>> PendingMessages = new Dictionary<String, List<String>>();
         private String lastmessageOnHold = null;
         ShipComponents components;
         
@@ -23,9 +23,9 @@ namespace SEMod.INGAME.classes
         int messagesSent = 0;
         int messagesRecieved = 0;
 
-        public ParsedMessage ParseMessage(string argument)
+        public FleetMessage ParseMessage(string argument)
         {
-            ParsedMessage pm = new ParsedMessage(argument, L);
+            FleetMessage pm = new FleetMessage(argument, L);
 
             //L.AddRecievedMessage(argument);
             messagesRecieved++;
@@ -33,14 +33,17 @@ namespace SEMod.INGAME.classes
             return pm;
         }
 
-        public void SendMessage(string m)
+        public void SendMessage(string key, string m)
         {
-            PendingMessages.Add(m);
+            if (PendingMessages.ContainsKey(key))
+                PendingMessages[key].Add(m);
+            else
+                PendingMessages.Add(key, new List<string> { m });
         }
 
         public void TransmitOrder(DroneOrder m, long commandID)
         {
-            PendingMessages.Add(ParsedMessage.CreateEncryptedOrder(m, commandID));
+            SendMessage(m.TargetEntityID + "", FleetMessage.CreateOrder(m, commandID));
         }
 
         Logger L;
@@ -51,17 +54,9 @@ namespace SEMod.INGAME.classes
             L = l;
             grid = _grid;
             this.components = componets;
-        }
+        }      
 
-        public void SendAwakeningMessage()
-        {
-            //L.Debug("Sending Awakening Call");
-            PendingMessages.Add(ParsedMessage.CreateAwakeningMessage());
-        }
-
-        
-
-        public List<String> RetrievePendingMessages()
+        public Dictionary<String, List<String>> RetrievePendingMessages()
         {
             return PendingMessages;
         }
@@ -79,7 +74,7 @@ namespace SEMod.INGAME.classes
         //internal void TransmitOrder(Order order, IMyCubeGrid grid)
         //{
         //    L.Debug("OrderType: " + order.Type+""+ grid.EntityId);
-        //    var encryptedOrder = ParsedMessage.CreateEncryptedOrder(order, grid.EntityId);
+        //    var encryptedOrder = FleetMessage.CreateEncryptedOrder(order, grid.EntityId);
         //    SendMessage(encryptedOrder);
         //}
 

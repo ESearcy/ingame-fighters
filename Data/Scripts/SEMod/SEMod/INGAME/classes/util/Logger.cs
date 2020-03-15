@@ -190,7 +190,7 @@ namespace SEMod.INGAME.classes
                 var distance = (int)(drone.lastKnownPosition - grid.GetPosition()).Length();
                 int velocity = (int)(Math.Abs(drone.LastKnownVector.X) + Math.Abs(drone.LastKnownVector.Y) + Math.Abs(drone.LastKnownVector.Z));
 
-                droneinfos += "| " + drone.EntityId + "   |  " + drone.Type + "     |    " + (int)(drone.Health * 100) + "%     |    " + drone.numSensors + "    |      " + drone.CameraCount + "      |    " + drone.NumDrills + " |       " + drone.Guns + " |       " + drone.Rockets + "       |    " + (int)((drone.PercentCargo / drone.StorageMax) * 100) + "% |       " + drone.StorageMax + " |       " + drone.CurrentPower + " |       " + drone.MaxPower + " |       " + drone.Batteries + "      |      " + (int)((drone.CurrentPower / drone.MaxPower)*100) + "% power |    " + drone.Merge + "       |    " + velocity + "/" + distance + " | " + (drone.Docked ? "Docked" : "un-docked") + "\n";
+                droneinfos += "| " + drone.EntityId + "   |  " + drone.Type + "     |    " + (int)(drone.Health * 100) + "%     |    " + drone.numSensors + "    |      " + drone.CameraCount + "      |    " + drone.NumDrills + " |       " + drone.Guns + " |       " + drone.Rockets + "       |    " + (int)((drone.StorageCurrent / drone.StorageMax) * 100) + "% |       " + drone.StorageMax + " |       " + drone.CurrentPower + " |       " + drone.MaxPower + " |       " + drone.Batteries + "      |      " + (int)((drone.CurrentPower / drone.MaxPower)*100) + "% power |    " + drone.Merge + "       |    " + velocity + "/" + distance + " | " + (drone.Docked ? "Docked" : "un-docked") + "\n";
             }
             if (drones.Count == 0)
                 droneinfos = "| No Drone Info |";

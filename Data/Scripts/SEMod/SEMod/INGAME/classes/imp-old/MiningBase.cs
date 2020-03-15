@@ -55,6 +55,7 @@ namespace SEMod.INGAME.classes.implementations
             InitialBlockCount = shipComponents.AllBlocks.Count();
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
         }
+
         protected FactorySystem factorySystems;
         protected BasicNavigationSystem navigationSystems;
         List<DroneContext> drones = new List<DroneContext>();
@@ -98,7 +99,7 @@ namespace SEMod.INGAME.classes.implementations
             var messages = RecieveMessages();
             foreach (var mes in messages) {
                 var pm = communicationSystems.ParseMessage(mes);
-                if (ParsedMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
+                if (FleetMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
                 {
                     pm.NumBounces++;
                     
@@ -126,7 +127,7 @@ namespace SEMod.INGAME.classes.implementations
         
         }
 
-        private void RegisterDrone(ParsedMessage pm)
+        private void RegisterDrone(FleetMessage pm)
         {
             var drone = drones.Where(x => x.Info.EntityId == pm.EntityId).FirstOrDefault();
             if (drone == null)
@@ -136,7 +137,7 @@ namespace SEMod.INGAME.classes.implementations
                 UpdateDrone(pm);
             }
 
-            communicationSystems.SendMessage(ParsedMessage.CreateConfirmationMessage(Me.CubeGrid.EntityId, pm.EntityId, pm.RequestID));
+            communicationSystems.SendMessage(FleetMessage.CreateConfirmationMessage(Me.CubeGrid.EntityId, pm.EntityId, pm.RequestID));
             log.Debug("registered Drone");
             UpdateDrone(pm);
         }
@@ -161,7 +162,7 @@ namespace SEMod.INGAME.classes.implementations
 
         }
 
-        private DroneContext UpdateDrone(ParsedMessage pm)
+        private DroneContext UpdateDrone(FleetMessage pm)
         {
             //log.Debug("processing update for drone");
             var drone = drones.Where(x => x.Info.EntityId == pm.EntityId).FirstOrDefault();
@@ -270,7 +271,7 @@ namespace SEMod.INGAME.classes.implementations
                     IssueStandbyOrder(droneInfo);
                 }
                 else
-                    log.Debug("Low Battery: dock Order Issued");
+                    log.Debug("Low Battery: Dock Order Issued");
 
             }
             else if ((batteryPercent < 97 || droneCargo > 75) && drone.Docked)

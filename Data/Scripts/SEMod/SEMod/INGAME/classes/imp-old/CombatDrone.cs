@@ -90,7 +90,7 @@ namespace SEMod.INGAME.classes.implementations
                     //log.Debug("Registered!!");
                 }
 
-                if (ParsedMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
+                if (FleetMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
                 {
                     pm.NumBounces++;
                     //log.Debug("Bounced Message");
@@ -176,7 +176,7 @@ namespace SEMod.INGAME.classes.implementations
                 //CurrentMass += block.HasInventory ? (int)block.GetInventory().CurrentMass : 0;
             }
 
-            String updateMessage = ParsedMessage.CreateUpdateMessage(
+            String updateMessage = FleetMessage.CreateUpdateMessage(
                 //basic details
                 Me.CubeGrid.EntityId,
                 CommandShipEntity,

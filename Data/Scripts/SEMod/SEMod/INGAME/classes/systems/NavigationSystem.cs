@@ -8,9 +8,6 @@ namespace SEMod.INGAME.classes.systems
     //////
     public class NavigationSystem : BasicNavigationSystem
     {
-        bool docking = false;
-        bool station = false;
-
         public void AlignAcrossGravity()
         {
             var align = RemoteControl.GetPosition().Cross(RemoteControl.GetNaturalGravity() * 100);
@@ -69,23 +66,6 @@ namespace SEMod.INGAME.classes.systems
             //LOG.Debug(angoff + " AlignUp Angle"); 
             return Math.Abs(angoff);
         }
-
-        Vector3D ProjectVector(Vector3D vectorToProject, Vector3D vectorProjectedOn)
-        {
-            return vectorToProject.Dot(vectorProjectedOn) / vectorProjectedOn.LengthSquared() * vectorProjectedOn;
-        }
-
-        // usage
-        //void Main()
-        //{
-        //    var gravity = RemoteControl.GetNaturalGravity();
-        //    var velocity = RemoteControl.GetShipVelocities().LinearVelocity;
-
-        //    var downwardVelocity = ProjectVector(velocity, gravity);
-        //}
-
-        double lastUpAngle = 0;
-        int thrusterMaxPower = 12;
 
         internal bool HoverApproach(Vector3D vector3D, double speed, int hoverHeight, Vector3D altitudeVector)
         {

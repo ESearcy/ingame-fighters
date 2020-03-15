@@ -45,10 +45,10 @@ namespace SEMod.INGAME.classes.systems
             if (pm.Name.ToLower().Contains("planet"))
                 UpdateSurfaceLocation(pm);
         }
-        public void UpdateTrackedEntity(ParsedMessage pm)
+        public void UpdateTrackedEntity(FleetMessage pm)
         {
-            TrackedEntity target = new TrackedEntity(pm.Location, pm.Velocity, pm.AttackPoint, pm.EntityId, pm.Name, (int)pm.ShipSize, pm.Relationship, pm.AttackPoint, pm.Type, log);
-            UpdateTrackedEntity(target);
+            //TrackedEntity target = new TrackedEntity(pm.Location, pm.Velocity, pm.AttackPoint, pm.EntityId, pm.Name, (int)pm.ShipSize, pm.Relationship, pm.AttackPoint, pm.Type, log);
+            //UpdateTrackedEntity(target);
         }
         public void UpdateTrackedEntity(TrackedEntity pm)
         {
@@ -106,10 +106,10 @@ namespace SEMod.INGAME.classes.systems
                 nearestPlanet = KnownPlanets.OrderBy(x => (x.PlanetCenter - pm.Location).Length()).FirstOrDefault();
         }
 
-        public void UpdateSurfaceLocation(ParsedMessage pm)
+        public void UpdateSurfaceLocation(FleetMessage pm)
         {
-            TrackedEntity target = new TrackedEntity(pm.Location, pm.Velocity, pm.AttackPoint, pm.EntityId, pm.Name, (int)pm.ShipSize, pm.Relationship, pm.AttackPoint, pm.Type, log);
-            UpdateSurfaceLocation(target);
+            //TrackedEntity target = new TrackedEntity(pm.Location, pm.Velocity, pm.AttackPoint, pm.EntityId, pm.Name, (int)pm.ShipSize, pm.Relationship, pm.AttackPoint, pm.Type, log);
+            //UpdateSurfaceLocation(target);
         }
 
         private PlanetaryData CreateNewPlanet(long id, Vector3D loc, Region newregion, PointOfInterest point, Vector3D cubegridLoc)

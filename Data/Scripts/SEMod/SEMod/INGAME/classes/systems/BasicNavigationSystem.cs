@@ -524,7 +524,8 @@ namespace SEMod.INGAME.classes.systems
 
             public void TurnOn()
             {
-                gyro.GetActionWithName("OnOff_On").Apply(gyro);
+                gyro.Enabled = true;
+                gyro.GyroOverride = true;
             }
 
             public void OverridePitch(float value)

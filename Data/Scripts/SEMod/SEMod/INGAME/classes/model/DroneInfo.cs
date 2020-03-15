@@ -23,7 +23,7 @@ namespace SEMod.INGAME.classes
         public int NumWeapons = 0;
         public int numSensors = 0;
         public double ShipSize = 0;
-        public double PercentCargo = 0;
+        public double StorageCurrent = 0;
         public int CameraCount = 0;
         public bool Unloaded = false;
         public double Health = 0;
@@ -35,7 +35,7 @@ namespace SEMod.INGAME.classes
         public int Batteries = 0;
         public double CurrentPower = 0;
         public double MaxPower = 0;
-
+        public long CommanderId;
 
         public DroneInfo(long id, String name, Vector3D location, Vector3D velocity)
         {
@@ -45,11 +45,11 @@ namespace SEMod.INGAME.classes
             LastKnownVector = velocity;
         }
 
-        public void Update(String name, Vector3D location, Vector3D velocity, bool docked, int cameraCount, double shipsize, int drillcount, int weaponCount, int sensorCount, int connectorCount, double percentCargo
+        public void Update(String name, Vector3D location, Vector3D velocity, bool docked, int cameraCount, double shipsize, int drillcount, int weaponCount, int sensorCount, int connectorCount, double storagecurrent
             , double health, double storagemax, int merge, int guns, int rockets, int reactors, int batteries, double currentpower, double maxpower)
         {
             CameraCount = cameraCount;
-            PercentCargo = percentCargo;
+            StorageCurrent = storagecurrent;
             Name = name;
             lastKnownPosition = location;
             LastKnownVector = velocity;

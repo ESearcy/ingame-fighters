@@ -21,7 +21,6 @@ namespace SEMod.INGAME.classes.implementations
         protected Logger log;
 
         protected CommunicationSystem communicationSystems;
-        
         protected ShipComponents shipComponents;
         protected TrackingSystem trackingSystems;
         protected WeaponSystem weaponSystems;
@@ -37,14 +36,28 @@ namespace SEMod.INGAME.classes.implementations
         //changing variables
         protected int lastOperationIndex = 0;
         protected DateTime lastReportTime = DateTime.Now;
+
         protected long messagesRecieved = 0;
-
-
+        protected string fleet_status_update = "fleet_status_update";
+        protected string fleet_grid_pings = "fleet_grid_pings";
+        protected string fleet_surface_pings = "fleet_surface_pings";
+        protected string fleet_requests = "fleet_requests";
+        
         public void SetupFleetListener()
         {
+            //all ships need these to join fleet and send/recieve updates
+            IGC.RegisterBroadcastListener(fleet_status_update);
 
-            IGC.RegisterBroadcastListener("fleet");
+            //handle entity requests
+            IGC.RegisterBroadcastListener(fleet_grid_pings);
+            IGC.RegisterBroadcastListener(fleet_surface_pings);
+
+            //requests
+            IGC.RegisterBroadcastListener(fleet_requests);
+            IGC.RegisterBroadcastListener(Me.CubeGrid.EntityId+"");
+            
         }
+
 
         protected void LocateAllParts()
         {
@@ -58,9 +71,13 @@ namespace SEMod.INGAME.classes.implementations
 
         public void SendPendingMessages()
         {
+            //log.Debug("sending pending messages");
             var messages = communicationSystems.RetrievePendingMessages();
-            foreach (var message in messages)
-               TransmitMessage("fleet", message);
+            foreach (var pack in messages)
+                foreach (var message in pack.Value)
+                    TransmitMessage(pack.Key, message);
+
+            messages.Clear();
         }
 
         TaskResult lastTask = null;
@@ -122,11 +139,12 @@ namespace SEMod.INGAME.classes.implementations
             try
             {
                 all_refs.Clear();
+
                 if (trackingSystems != null)
                     foreach (var screen in trackingSystems.GetScreenInfo())
                         all_refs.Add(screen.Key, screen.Value);
 
-                Mass = (int)(GetCargoMass() + shipComponents.AllBlocks.Sum(x => x.Mass));
+                Mass = (int)(shipComponents.AllBlocks.Sum(x => x.Mass));
 
                 var controlBlock = shipComponents.ControlUnits.FirstOrDefault();
 
@@ -134,7 +152,7 @@ namespace SEMod.INGAME.classes.implementations
                 if (controlBlock != null)
                 {
                     var maxMass = (int)shipComponents.Thrusters.Where(x => x.WorldMatrix.Forward == controlBlock.WorldMatrix.Forward).Sum(x => x.MaxThrust) / (controlBlock.GetNaturalGravity().Length());
-                    UpdateInfoKey("Weight Information", " Mass: " + Mass + "kg  MaxMass: " + (int)maxMass + "kg");
+                    UpdateInfoKey("Weight Information", " Mass: " + Mass + "kg  MaxMass: " + (int)maxMass + "kg\n");
                 }
 
                 foreach (var op in operatingOrder)
@@ -283,7 +301,6 @@ namespace SEMod.INGAME.classes.implementations
                     // log.Debug("flipping range");
                 }
 
-
                 //var ent = camera.Raycast(range, pitch, yaw); 
                 var ent = camera.Raycast(range, pitch, yaw);
                 //log.Debug("Scanning Raycast: \nrange:pitch:yaw " + range + ":" + pitch + ":" + yaw);
@@ -305,41 +322,7 @@ namespace SEMod.INGAME.classes.implementations
         private void TransmitMessage(String destination, String message)
         {
                 IGC.SendBroadcastMessage(destination, message, TransmissionDistance.TransmissionDistanceMax);
-                //L.Debug("Transmiting: " + message);
-        }
-        protected void ParseMessage(string argument, bool selfCalled = false)
-        {
-            try
-            {
-                if (argument == null)
-                    return;
-
-                var pm = communicationSystems.ParseMessage(argument);
-
-                if (ParsedMessage.MaxNumBounces < pm.NumBounces && !selfCalled && pm.MessageType != MessageCode.PingEntity)
-                {
-                    pm.NumBounces++;
-                    //LOG.Debug("Bounced Message");
-                    communicationSystems.SendMessage(pm.ToString());
-                }
-
-                //switch (pm.MessageType)
-                //{
-                //   // case MessageCode.PingEntity:
-                //        //if its a new point of intrest, sync the position with all ships.
-
-                //    //    if (!pm.Type.Trim().ToLower().Contains("planet"))// && trackingSystems.UpdatePlanetData(pm, selfCalled))
-                //    //    {
-                //    //        var ent = new TrackedEntity(pm, log);
-                //    //        trackingSystems.UpdateTrackedEntity(pm, selfCalled);
-                //    //    }
-                //        //communicationSystems.SendMessage(pm.ToString());
-
-
-                //            break;
-                //}
-            }
-            catch (Exception e) { log.Error(e.Message); }
+                log.Debug("Transmiting: "+ destination+" | " + message);
         }
 
         internal PlanetaryData NearestPlanet = null;
@@ -362,38 +345,21 @@ namespace SEMod.INGAME.classes.implementations
             shipInfoKeys.Add(name, value);
         }
 
-        protected double GetCargoMass()
-        {
-            //double mass = 0;
-            //List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
-            //GridTerminalSystem.GetBlocks(blocks);
-            //for (int i = 0; i < blocks.Count; i++)
-            //{
-            //    var count = blocks[i].GetInventoryCount(); // Multiple inventories in Refineriers, Assemblers, Arc Furnances.
-            //    for (var inv = 0; inv < count; inv++)
-            //    {
-            //        var inventory = blocks[i].GetInventory(inv);
-            //        //if (inventory != null) // null means, no items in inventory.
-            //           // mass += (double)inventory.CurrentMass;
-            //    }
-            //}
-            return 0;
-        }
-
         protected int Mass = 0;
 
-
+        List<IMyBroadcastListener> listeners = new List<IMyBroadcastListener>();
         List<String> incomingMessages = new List<String>();
-        public List<String> RecieveMessages()
+        public List<String> RecieveMessages(Func<IMyBroadcastListener, bool> collect)
         {
-            List<IMyBroadcastListener> listeners = new List<IMyBroadcastListener>();
 
+            listeners.Clear();
             // The method argument below is the list we wish IGC to populate with all Listeners we've made.
             // Our Listener will be at index 0, since it's the only one we've made so far.
-            IGC.GetBroadcastListeners(listeners);
-            incomingMessages.Clear();
+            IGC.GetBroadcastListeners(listeners, collect);
 
-            if (listeners[0].HasPendingMessage)
+            incomingMessages.Clear();
+            foreach(var listener in listeners)
+            if (listener.HasPendingMessage)
             {
                 // Let's create a variable for our new message. 
                 // Remember, messages have the type MyIGCMessage.
@@ -401,7 +367,7 @@ namespace SEMod.INGAME.classes.implementations
 
                 // Time to get our message from our Listener (at index 0 of our Listener list). 
                 // We do this with the following method:
-                message = listeners[0].AcceptMessage();
+                message = listener.AcceptMessage();
 
                 if (message.Data != null)
                 {
@@ -421,6 +387,22 @@ namespace SEMod.INGAME.classes.implementations
                 }
             }
             return incomingMessages;
+        }
+
+
+        public List<String> PullDirectMessages()
+        {
+            return RecieveMessages(x => x.Tag.Contains(Me.CubeGrid.EntityId+""));
+        }
+
+        public List<String> PullFleetMessages()
+        {
+            return RecieveMessages(x => x.Tag.Contains("fleet"));
+        }
+
+        public List<String> PullGridMessages()
+        {
+            return RecieveMessages(x => x.Tag.Contains(Me.CubeGrid.EntityId+""));
         }
 
         //////

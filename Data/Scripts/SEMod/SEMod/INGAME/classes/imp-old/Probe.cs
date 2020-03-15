@@ -7,10 +7,10 @@ using SEMod.INGAME.classes.model;
 
 namespace SEMod.INGAME.classes.implementations
 {
-    class MiningDrone : AIShipBase
+    class Probe : AIShipBase
     {
 
-        public MiningDrone()
+        public Probe()
         //////public Program()
         {
             shipComponents = new ShipComponents();
@@ -19,7 +19,6 @@ namespace SEMod.INGAME.classes.implementations
 
             communicationSystems = new CommunicationSystem(log, Me.CubeGrid, shipComponents);
             navigationSystems = new NavigationSystem(log, Me.CubeGrid, shipComponents);
-
             trackingSystems = new TrackingSystem(log, Me.CubeGrid, shipComponents, false);
             weaponSystems = new WeaponSystem(log, Me.CubeGrid, shipComponents);
 
@@ -35,7 +34,7 @@ namespace SEMod.INGAME.classes.implementations
             operatingOrder.AddLast(new TaskInfo(UpdateDisplays));
             SetupFleetListener();
 
-            maxCameraRange = 5000;
+            maxCameraRange = 2000;
             maxCameraAngle = 80;
 
             //set new defaults
@@ -44,6 +43,15 @@ namespace SEMod.INGAME.classes.implementations
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
         }
         protected NavigationSystem navigationSystems;
+
+        DateTime LastUpdateTime = DateTime.Now.AddMinutes(-5);
+
+        DroneOrder CurrentOrder;
+        DroneOrder NextOrder;
+
+        long CommandShipEntity = 0;
+        bool registered = false;
+
         protected void Main(String argument, UpdateType updateType)
         {
             try
@@ -83,7 +91,7 @@ namespace SEMod.INGAME.classes.implementations
                     log.Debug("Registered!!");
                 }
 
-                if (ParsedMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
+                if (FleetMessage.MaxNumBounces < pm.NumBounces && pm.MessageType != MessageCode.PingEntity)
                 {
                     pm.NumBounces++;
                     //LOG.Debug("Bounced Message");
@@ -147,12 +155,7 @@ namespace SEMod.INGAME.classes.implementations
             }
         }
 
-        //Order related variables
-        DateTime LastUpdateTime = DateTime.Now.AddMinutes(-5);
-        long CommandShipEntity = 0;
-        bool registered = false;
-        DroneOrder CurrentOrder;
-        DroneOrder NextOrder;
+
         public void FollowOrders()
         {
             try
@@ -195,7 +198,7 @@ namespace SEMod.INGAME.classes.implementations
             }
             
 
-            String updateMessage = ParsedMessage.CreateUpdateMessage(
+            String updateMessage = FleetMessage.CreateUpdateMessage(
                 //basic details
                 Me.CubeGrid.EntityId,
                 CommandShipEntity,
@@ -233,7 +236,7 @@ namespace SEMod.INGAME.classes.implementations
             //
 
             communicationSystems.SendMessage(updateMessage);
-            //ParsedMessage.CreateUpdateMessage(
+            //FleetMessage.CreateUpdateMessage(
             //    Me.CubeGrid.EntityId,
             //    CommandShipEntity,
             //    navigationSystems.GetSpeedVector(),
