@@ -5,93 +5,79 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ClassBuilder
-{
-    class Program
-    {
-        static void Main(string[] args)
-        {
+namespace ClassBuilder {
+    class Program {
+        static void Main (string[] args) {
 
-           var path = "C:\\Users\\Elton\\Desktop\\Space Engineers mods\\FighterCommand\\ingame-fighters\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes";
-            var configFile = "C:\\Users\\Elton\\Desktop\\Space Engineers mods\\FighterCommand\\ingame-fighters\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes\\implementations";
+            var path = "C:\\Users\\elton\\OneDrive\\Documents\\GitHub\\ingame-fighters\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes";
+            var configFile = "C:\\Users\\elton\\OneDrive\\Documents\\GitHub\\ingame-fighters\\Data\\Scripts\\SEMod\\SEMod\\INGAME\\classes\\implementations";
             //C:\Users\Elton\Desktop\Space Engineers mods\FighterCommand\ingame-fighters
 
+            string[] files = Directory.GetFileSystemEntries (path, "*.cs", SearchOption.AllDirectories);
 
-            string[] files = Directory.GetFileSystemEntries(path, "*.cs", SearchOption.AllDirectories);
+            Dictionary<string, string> contents = new Dictionary<string, string> ();
 
-            Dictionary<string, string> contents = new Dictionary<string, string>();
-
-            foreach (String file in files)
-            {
-                string classname = Path.GetFileName(file).Replace(".cs", "");
+            foreach (String file in files) {
+                string classname = Path.GetFileName (file).Replace (".cs", "");
                 //string cont = File.ReadAllText(file);
-                String[] lines = File.ReadAllLines(file);
+                String[] lines = File.ReadAllLines (file);
                 int breaksFound = 0;
-                StringBuilder content = new StringBuilder();
+                StringBuilder content = new StringBuilder ();
                 String previousline = "";
-                for (int i = 0; i < lines.Length && breaksFound < 2; i++)
-                {
+                for (int i = 0; i < lines.Length && breaksFound < 2; i++) {
                     String line = lines[i];
-                    if (line.Contains("//////"))
-                    {
-                        if (breaksFound < 1 && line.Replace("//////", "").Trim().Length > 0)
-                            content.AppendLine(line.Replace("//////", "").Trim());
+                    if (line.Contains ("//////")) {
+                        if (breaksFound < 1 && line.Replace ("//////", "").Trim ().Length > 0)
+                            content.AppendLine (line.Replace ("//////", "").Trim ());
 
                         breaksFound++;
-                    }
-                    else if (breaksFound == 1 && line.Trim().Length > 0 && !line.Trim().StartsWith("//") && !previousline.Contains("//skipbelow"))
-                        content.AppendLine(Minify(line));
+                    } else if (breaksFound == 1 && line.Trim ().Length > 0 && !line.Trim ().StartsWith ("//") && !previousline.Contains ("//skipbelow"))
+                        content.AppendLine (Minify (line));
                     previousline = line;
                 }
-                contents.Add(classname, content.ToString());
+                contents.Add (classname, content.ToString ());
             }
 
-            string[] conFiles = Directory.GetFileSystemEntries(configFile, "*.txt", SearchOption.AllDirectories);
+            string[] conFiles = Directory.GetFileSystemEntries (configFile, "*.txt", SearchOption.AllDirectories);
 
-            foreach (string file in conFiles)
-            {
-                string parent = Path.GetDirectoryName(path);
-                string[] stypes = File.ReadAllLines(file);
+            foreach (string file in conFiles) {
+                string parent = Path.GetDirectoryName (path);
+                string[] stypes = File.ReadAllLines (file);
 
-                foreach (string line in stypes)
-                {
+                foreach (string line in stypes) {
                     string concatedClasses = "";
-                    string shipType = line.Split(':')[0];
-                    string[] requiredClasses = line.Split(':')[1].Split(',');
+                    string shipType = line.Split (':') [0];
+                    string[] requiredClasses = line.Split (':') [1].Split (',');
 
-                    foreach (string req in requiredClasses)
-                    {
-                        concatedClasses += "\n" + contents[req].Trim();
+                    foreach (string req in requiredClasses) {
+                        concatedClasses += "\n" + contents[req].Trim ();
                     }
-                    concatedClasses = contents[shipType].Trim() + "\n" + concatedClasses;
+                    concatedClasses = contents[shipType].Trim () + "\n" + concatedClasses;
 
                     string outputPath = parent + "\\\\" + shipType + ".txt";
 
-                    if (File.Exists(outputPath))
-                        File.Delete(outputPath);
+                    if (File.Exists (outputPath))
+                        File.Delete (outputPath);
 
-                    File.WriteAllText(outputPath, concatedClasses);
+                    File.WriteAllText (outputPath, concatedClasses);
                 }
             }
 
-
-
-            files.Count();
+            files.Count ();
         }
-        public static String Minify(String s)
-        {
-            s = s.Replace(", ",",");
-            s = s.Replace(" + ", "+");
-            s = s.Replace("  ", "");
-            s = s.Replace(" - ", "-");
-            s = s.Replace(" = ", "=");
-            s = s.Replace(" * ", "*");
-            s = s.Replace(" == ", "==");
-            s = s.Replace(" >= ", ">=");
-            s = s.Replace(" <= ", "<=");
-            s = s.Replace("; ", ";");
+        public static String Minify (String s) {
+            s = s.Replace (", ", ",");
+            s = s.Replace (" + ", "+");
+            s = s.Replace ("  ", "");
+            s = s.Replace (" - ", "-");
+            s = s.Replace (" = ", "=");
+            s = s.Replace (" * ", "*");
+            s = s.Replace (" == ", "==");
+            s = s.Replace (" >= ", ">=");
+            s = s.Replace (" <= ", "<=");
+            s = s.Replace ("; ", ";");
 
-            return s.Trim();
+            return s.Trim ();
         }
     }
 }
