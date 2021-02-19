@@ -133,10 +133,14 @@ namespace SEMod.INGAME.classes.systems
             return nearestPlanet;
         }
 
+        public Vector3D NearestSurfacePoint;
         public void Update()
         {
             if (nearestPlanet != null)
-                altitude = (nearestPlanet.GetNearestPoint(cubeGrid.GetPosition()) - cubeGrid.GetPosition());
+            {
+                NearestSurfacePoint = nearestPlanet.GetNearestPoint(cubeGrid.GetPosition());
+                altitude = NearestSurfacePoint - cubeGrid.GetPosition();
+            }
 
             long msStop = DateTime.Now.Ticks;
             long timeTaken = msStop - last_slow_update;

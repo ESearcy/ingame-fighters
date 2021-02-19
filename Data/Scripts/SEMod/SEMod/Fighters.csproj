@@ -91,6 +91,7 @@
   <ItemGroup>
     <Compile Include="INGAME\classes\implementations\AIShipBase.cs" />
     <Compile Include="INGAME\classes\implementations\Base.cs" />
+    <Compile Include="INGAME\classes\implementations\TestDrone.cs" />
     <Compile Include="INGAME\classes\implementations\MiningBase.cs" />
     <Compile Include="INGAME\classes\implementations\CombatDrone.cs" />
     <Compile Include="INGAME\classes\implementations\MiningDrone.cs" />

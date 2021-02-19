@@ -66,7 +66,6 @@ namespace SEMod.INGAME.classes.systems
             TurnOffGyros(true);
             PointToVector(position, 0.00, true);
             var angoff = (_degreesToVectorPitch + _degreesToVectorYaw);
-            //LOG.Debug(angoff + " AlignUp Angle"); 
             return Math.Abs(angoff);
         }
 
@@ -86,6 +85,80 @@ namespace SEMod.INGAME.classes.systems
 
         double lastUpAngle = 0;
         int thrusterMaxPower = 12;
+
+        internal bool EngageThrusters(Vector3D travelVector, double travelSpeed, Vector3D avoidVector, int avoidSpeed, Vector3D currentSpeedVector)
+        {
+            var maxSpeed = avoidSpeed>travelSpeed? travelSpeed: avoidSpeed;
+            var successful = false;
+            if (GetSpeed() > maxSpeed)
+            {
+                SlowDown();
+            }
+            else
+            {
+                var thrusted = false;
+
+                //antidrift handled by Dampeners
+                if (!RemoteControl.DampenersOverride)
+                    RemoteControl.DampenersOverride = true;
+
+                var udAndle = Math.Abs(AngleBetween(-gravity, thrusterVector, true));
+
+                foreach (var thruster in components.Thrusters)
+                {
+                    //get current thrust (Dampeners)
+                    var currentThrust = thruster.CurrentThrust;
+                    var maxPossibleThrust = thruster.MaxThrust;
+
+                    thruster.GetActionWithName("OnOff_On").Apply(thruster);
+                    var thrusterVector = thruster.WorldMatrix.Forward;
+                    var joinedVector = travelVector + avoidVector;
+                    joinedVector.Normalize();
+
+                    double joinedAngle = Math.Abs(AngleBetween(thrusterVector, joinedVector, true));
+                    double travelAngle = Math.Abs(AngleBetween(thrusterVector, travelVector, true));
+                    double avoidAngle = Math.Abs(AngleBetween(thrusterVector, avoidVector, true));
+
+                    //60 negative and pos, technically 120* cone
+                    var gravity = RemoteControl.GetNaturalGravity();
+
+                    var angleDown = Math.Abs(AngleBetween(-gravity, thrusterVector, true));
+                    var angleUp = Math.Abs(AngleBetween(gravity, thrusterVector, true));
+                    //going up needs 200% anti gravity thrust
+                    //going straight down requires 0 anti gravity thrust
+                    //going horizontal needs 100% anti gravity thrust to nullify gravity
+                    var applicableUpDownPercent = (angleUp < 90 ? ((90 - angleUp) / 90): angleDown < 90 ? ((90 - angleDown) / 90) * -1 : 0) + 1;
+                    maxPossibleThrust = maxPossibleThrust * (float)applicableUpDownPercent;
+                    //if (Upward)
+
+
+                    if (angle <= 85)
+                    { 
+                        if (blockUpDownGravityMovement && (!Downward && !Upward))
+                        {
+                            thruster.SetValueFloat("Override", (float)(desiredThrust));
+                        }
+                        else if (!Downward)
+                        {
+                            thruster.SetValueFloat("Override", (float)(desiredThrust));
+                        }
+                        else if (Downward && !blockUpDownGravityMovement)
+                        {
+                            thruster.SetValueFloat("Override", desiredThrust / 4);
+                        }
+
+                        successful = true;
+                    }
+                    else if (disableIsAlreadyRunning)
+                        thruster.SetValueFloat("Override", 0);
+
+                }
+                return successful;
+
+            }
+            return successful;
+        }
+
 
         internal bool HoverApproach(Vector3D vector3D, double speed, int hoverHeight, Vector3D altitudeVector)
         {
@@ -113,28 +186,30 @@ namespace SEMod.INGAME.classes.systems
             return successful;
         }
 
-        internal bool Approach(Vector3D vector3D, double speed)
-        {
-            RemoteControl.DampenersOverride = true;
-            var successful = false;
+        //internal bool Approach(Vector3D vector3D, double speed)
+        //{
+        //    RemoteControl.DampenersOverride = true;
+        //    var successful = false;
 
-            var upAng = AngleBetween(RemoteControl.WorldMatrix.Forward, _grid.GetPosition() - vector3D, true);
-            var downAng = AngleBetween(RemoteControl.WorldMatrix.Backward, _grid.GetPosition() - vector3D, true);
+        //    var upAng = AngleBetween(RemoteControl.WorldMatrix.Forward, _grid.GetPosition() - vector3D, true);
+        //    var downAng = AngleBetween(RemoteControl.WorldMatrix.Backward, _grid.GetPosition() - vector3D, true);
 
-            var dirToTarget = RemoteControl.GetPosition() - vector3D;
-            var dist = dirToTarget.Length();
-            dirToTarget.Normalize();
+        //    var dirToTarget = RemoteControl.GetPosition() - vector3D;
+        //    var dist = dirToTarget.Length();
+        //    dirToTarget.Normalize();
 
-            if (GetSpeed() > speed)
-            {
-                SlowDown();
-            }
-            else
-            {
-                successful = ThrustInDirection(dirToTarget);
-            }
-            return successful;
-        }
+        //    if (GetSpeed() > speed)
+        //    {
+        //        SlowDown();
+        //    }
+        //    else
+        //    {
+        //        successful = ThrustInDirection(dirToTarget);
+        //          //MaintainAltitude
+        //          successful = ThrustInDirection(dirToTarget, false, false);
+        //    }
+        //    return successful;
+        //}
 
         internal bool DockApproach(Vector3D droneConnector, Vector3D vector3D)
         {

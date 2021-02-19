@@ -518,7 +518,6 @@ yaw -= 5;
 if (yaw<=-maxAngle)
 {
 yaw=yaw*-1;
-range -= 200;
 }
 if (range<=1)
 {
@@ -1149,7 +1148,7 @@ ThrustInDirection((direction*2));
 else
 SlowDown();
 }
-float RollSetting=.3f;
+float RollSetting=.4f;
 public double AlignUp(Vector3D position)
 {
 var currentAlign=RemoteControl.WorldMatrix.Up;

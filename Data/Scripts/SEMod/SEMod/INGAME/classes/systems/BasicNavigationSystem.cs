@@ -83,7 +83,7 @@ namespace SEMod.INGAME.classes.systems
             var HoverLocation = RemoteControl.GetPosition() - gravityDir * (minAltitude - altitude);
             Vector3D direction = RemoteControl.GetPosition() - HoverLocation;
             direction.Normalize();
-            var difference = minAltitude - altitude;
+            var shipMass = RemoteControl.CalculateShipMass();
 
             if (GetSpeed() < maxSpeed)
                 ThrustInDirection((direction * 2));
@@ -91,7 +91,7 @@ namespace SEMod.INGAME.classes.systems
                 SlowDown();
         }
 
-        float RollSetting = .3f;
+        float RollSetting = .4f;
         public double AlignUp(Vector3D position)
         {
             var currentAlign = RemoteControl.WorldMatrix.Up;
@@ -118,7 +118,6 @@ namespace SEMod.INGAME.classes.systems
             //antidrift handled by Dampeners
             if (!RemoteControl.DampenersOverride)
                 RemoteControl.DampenersOverride = true;
-
 
             foreach (var thruster in components.Thrusters)
             {

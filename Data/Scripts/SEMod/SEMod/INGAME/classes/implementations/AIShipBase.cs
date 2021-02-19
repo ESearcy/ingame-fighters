@@ -274,7 +274,7 @@ namespace SEMod.INGAME.classes.implementations
                 if (yaw <= -maxAngle)
                 {
                     yaw = yaw * -1;
-                    range -= 200;
+                    //range -= 200;
                     //log.Debug("flipping yaw");
                 }
                 if (range <= 1)
